@@ -5,7 +5,8 @@ Created on Wed Nov 17 17:02:18 2021
 @author: Sterling Engle
 @uid: 904341227
 
-Developed and tested only on Windows 10 under Python 3.9.7.
+Developed and tested only on Windows 10 running Ubuntu 18.04.6 LTS
+under Python 3.9.7.
 
 usage: snpcrypt.py [-h] [-b] [-c COUNT] [-d DELIM] [-e] [-f FILE]
                    [-g GENKEYPATH] [-i] [-k KEYPATH] [-l LOG] [-p POS]
@@ -89,13 +90,14 @@ def printlog(*args, sep=" "):
 # returns alternative alleles
 def getAlts(alts):
 	altsStr = ""
-	first = True
-	for alt in alts:
-		if first == True:
-			altsStr += f"{alt}"
-			first = False
-		else:
-			altsStr += f",{alt}"
+	if alts is not None:
+		first = True
+		for alt in alts:
+			if first == True:
+				altsStr += f"{alt}"
+				first = False
+			else:
+				altsStr += f",{alt}"
 	return altsStr
 
 # returns filter
