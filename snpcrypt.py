@@ -165,8 +165,10 @@ def getSamples(samples, count=sys.maxsize, ids=False, bases=False, sep="tab"):
 				value = ""
 			if bases:
 				value = value + rec.alleles[0] + "|" + rec.alleles[1]
-			else:
+			elif len(rec.allele_indices) > 1:
 				value = value + str(rec.allele_indices[0]) + "|" + str(rec.allele_indices[1])
+			elif len(rec.allele_indices) == 1:
+				value = value + str(rec.allele_indices[0])
 
 			if first == True:
 				sampleStr += f"{value}"
