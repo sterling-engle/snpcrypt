@@ -562,7 +562,12 @@ def main():
 																									 genKeyPublicFile,
 																									 password)
 
-	vcfInfile = VariantFile(inputfile, mode='r', threads=4)
+	try:
+		vcfInfile = VariantFile(inputfile, mode='r', threads=4)
+	except ValueError as e:
+		printlog(f"[VariantFile({inputfile})] ValueError ignored: {e}.")
+		printlog("program exiting.")
+		quit()
 
 	if args['header']:
 		if verbose:
@@ -602,21 +607,24 @@ def main():
 
 	if snpLimit > 0:
 		SNPcount = 0
-		for rec in vcfInfile.fetch():
-			try:
-				qual = rec.qual
-				if isinstance(qual, float):  # remove trailing zeroes
-					qual = f"{qual:.6f}".rstrip('0').rstrip('.')
-				printlog (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts), qual,
-									getFilter(rec.filter), getInfo(rec.info), getFormat(rec.format),
-									getSamples(rec.samples, count, ids, bases))
-				SNPcount += 1
-				if SNPcount >= snpLimit:
-					if verbose:
-						printlog(f"{SNPcount} SNPs output in plaintext")
-					break
-			except ValueError as e:
-				print (f"[--snps={args['snps']}] ValueError: {e} (blank line) ignored.")
+		try:
+			for rec in vcfInfile.fetch():
+				try:
+					qual = rec.qual
+					if isinstance(qual, float):  # remove trailing zeroes
+						qual = f"{qual:.6f}".rstrip('0').rstrip('.')
+					printlog (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts), qual,
+										getFilter(rec.filter), getInfo(rec.info), getFormat(rec.format),
+										getSamples(rec.samples, count, ids, bases))
+					SNPcount += 1
+					if SNPcount >= snpLimit:
+						if verbose:
+							printlog(f"{SNPcount} SNPs output in plaintext")
+						break
+				except ValueError as e:
+					printlog(f"[--snps={args['snps']}] ValueError ignored: {e}.")
+		except OSError as o:
+			printlog(f"[--snps={args['snps']}] OSError ignored: {o}.")
 
 	vcfInfile.close()
 
