@@ -564,8 +564,8 @@ def main():
 
 	try:
 		vcfInfile = VariantFile(inputfile, mode='r', threads=4)
-	except ValueError as e:
-		printlog(f"[VariantFile({inputfile})] ValueError ignored: {e}.")
+	except (FileNotFoundError, ValueError) as e:
+		printlog(f"[VariantFile({inputfile})] error ignored: {e}.")
 		printlog("program exiting.")
 		quit()
 
