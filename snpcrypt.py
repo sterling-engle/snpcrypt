@@ -68,6 +68,7 @@ import os
 import sys
 
 import argparse  # command line parsing library
+from pysam import AlignmentFile
 from pysam import VariantFile
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives.asymmetric import rsa
@@ -495,6 +496,11 @@ def main():
 	args = getArgs()
 	inputfile = args['inputfile']
 	inputfile = args['inputfile'].strip("'")
+	basename = os.path.basename(inputfile)
+	split = os.path.splitext(basename)
+	filetype = None
+	if len(split) > 1:
+		filetype = split[len(split) - 1]
 	logFile = args['log']
 	verbose = args['verbose']
 	if verbose:
@@ -562,12 +568,45 @@ def main():
 																									 genKeyPublicFile,
 																									 password)
 
-	try:
-		vcfInfile = VariantFile(inputfile, mode='r', threads=4)
-	except (FileNotFoundError, ValueError) as e:
-		printlog(f"[VariantFile({inputfile})] error ignored: {e}.")
-		printlog("program exiting.")
-		quit()
+	if filetype == ".vcf" or filetype == ".bcf":
+		try:
+			vcfInfile = VariantFile(inputfile, mode='r', threads=4)
+		except (FileNotFoundError, ValueError) as e:
+			printlog(f"[VariantFile({inputfile})] error ignored: {e}.")
+			printlog("program exiting.")
+			quit()
+	elif filetype == ".bam":
+		try:
+			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
+			bamIter = bamInfile.fetch()
+			for x in bamIter:
+				print(str(x))
+			quit()
+		except (FileNotFoundError, ValueError) as e:
+			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
+			printlog("program exiting.")
+			quit()
+	elif filetype == ".sam":
+		try:
+			samInfile = AlignmentFile(inputfile, mode='r', check_sq=False, threads=4)
+			samIter = samInfile.fetch()
+			for x in samIter:
+				print(str(x))
+			quit()
+		except (FileNotFoundError, ValueError) as e:
+			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
+			printlog("program exiting.")
+			quit()
+	elif filetype == ".cram":
+		try:
+			vcfInfile = AlignmentFile(inputfile, mode='rc', threads=4)
+		except (FileNotFoundError, ValueError) as e:
+			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
+			printlog("program exiting.")
+			quit()
+	else:
+			printlog(f"[file: '{inputfile}'] unrecognized file type.")
+			printlog("program exiting.")
 
 	if args['header']:
 		if verbose:
