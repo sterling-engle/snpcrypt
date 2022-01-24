@@ -483,6 +483,8 @@ def getArgs():
 									help="output VCF header [false]")
 	ap.add_argument("-w", "--password", type=ascii,
 									help="encrypted private key password [none]")
+	ap.add_argument("-x", "--region", type=ascii,
+									help="eXtract BAM/SAM region, e.g. 'chr1:15001-20000' [none]")
 	ap.add_argument('inputfile', nargs='?', type=ascii,
 									default = "1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz",
 									help="SNPs VCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
@@ -514,6 +516,9 @@ def main():
 	password=args['password']  # None if not set
 	if password != None:
 		password = bytes(password.strip("'"), "ascii")
+	region = args['region']  # BAM/SAM file region to extract, if any, else None
+	if region != None:
+		region = region.strip("'")
 	genKeyPath = args['genkeypath']  # None if not set
 	keyPath = args['keypath']  # None if not set
 	encrypt = args['encrypt']  # default: False (decrypt)
@@ -567,8 +572,8 @@ def main():
 		private_key, public_key = genPrivatePublicKeys(genKeyPrivateFile,
 																									 genKeyPublicFile,
 																									 password)
-
-	if filetype == ".vcf" or filetype == ".bcf":
+	# ".gz" is .vcf.gz compressed VCF file
+	if filetype == ".vcf" or filetype == ".gz" or filetype == ".bcf":
 		try:
 			vcfInfile = VariantFile(inputfile, mode='r', threads=4)
 		except (FileNotFoundError, ValueError) as e:
