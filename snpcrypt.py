@@ -486,7 +486,7 @@ def getArgs():
 	ap.add_argument("-w", "--password", type=ascii,
 									help="encrypted private key password [none]")
 	ap.add_argument("-x", "--region", type=ascii,
-									help="eXtract BAM region, e.g. '1,10000,10005' [none]")
+									help="eXtract BAM region(s), e.g. '1,10000,10005' [none]")
 	ap.add_argument('inputfile', nargs='?', type=ascii,
 									default = "1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz",
 									help="BAM or SNPs VCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
@@ -585,14 +585,20 @@ def main():
 	elif filetype == ".bam":
 		try:
 			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
+			# print(bamInfile.header)
 			if region is None:
 				bamIter = bamInfile.fetch()
-			else:
-				bamIter = bamInfile.fetch(regionTuple[0], int(regionTuple[1]),
-																	int(regionTuple[2]))
-			for x in bamIter:
-				print(str(x))
-			quit()
+				for x in bamIter:
+					print(str(x))
+					quit()
+			else:  # support a list of ranges
+				for i in range(int(len(regionTuple) / 3)):
+					j = i * 3  # j is the offset of the next region in the tuple
+					bamIter = bamInfile.fetch(regionTuple[j + 0], int(regionTuple[j + 1]),
+																		int(regionTuple[j + 2]))
+					for x in bamIter:
+						print(str(x))
+				quit()
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
@@ -600,11 +606,7 @@ def main():
 	elif filetype == ".sam":
 		try:
 			samInfile = AlignmentFile(inputfile, mode='r', check_sq=False, threads=4)
-			if region is None:
-				samIter = samInfile.fetch()
-			else:
-				samIter = samInfile.fetch(regionTuple[0], int(regionTuple[1]),
-																	int(regionTuple[2]))
+			samIter = samInfile.fetch()  # cannot extract regions from non-indexed SAM files
 			for x in samIter:
 				print(str(x))
 			quit()
@@ -620,8 +622,8 @@ def main():
 			printlog("program exiting.")
 			quit()
 	else:
-			printlog(f"[file: '{inputfile}'] unrecognized file type.")
-			printlog("program exiting.")
+		printlog(f"[file: '{inputfile}'] unrecognized file type.")
+		printlog("program exiting.")
 
 	if args['header']:
 		if verbose:
