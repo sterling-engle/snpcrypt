@@ -42,7 +42,7 @@ optional arguments:
   -w PASSWORD, --password PASSWORD
                         encrypted private key password [none]
   -x REGION, --region REGION
-                        eXtract BAM/SAM region, e.g. '1,10000,10005' [none]
+                        eXtract BAM/SAM region(s), e.g. '1:100-105,2:1234:5678' [none]
 
 CHROM  POS ID  REF ALT QUAL  FILTER  INFO  FORMAT
 ['alleles',
@@ -486,7 +486,7 @@ def getArgs():
 	ap.add_argument("-w", "--password", type=ascii,
 									help="encrypted private key password [none]")
 	ap.add_argument("-x", "--region", type=ascii,
-									help="eXtract BAM region(s), e.g. '1,10000,10005' [none]")
+									help="eXtract BAM/SAM region(s), e.g. '1:100-105,2:1234:5678' [none]")
 	ap.add_argument('inputfile', nargs='?', type=ascii,
 									default = "1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz",
 									help="BAM or SNPs VCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
@@ -582,20 +582,25 @@ def main():
 			printlog(f"[VariantFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
 			quit()
+		if args['header']:
+			if verbose:
+				printlog(f"VCF file '{inputfile}' header:")
+			printlog(vcfInfile.header)
 	elif filetype == ".bam":
 		try:
 			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
-			# print(bamInfile.header)
+			if args['header']:
+				if verbose:
+					printlog(f"BAM file '{inputfile}' header:")
+				printlog(bamInfile.header)
 			if region is None:
 				bamIter = bamInfile.fetch()
 				for x in bamIter:
 					print(str(x))
 					quit()
 			else:  # support a list of ranges
-				for i in range(int(len(regionTuple) / 3)):
-					j = i * 3  # j is the offset of the next region in the tuple
-					bamIter = bamInfile.fetch(regionTuple[j + 0], int(regionTuple[j + 1]),
-																		int(regionTuple[j + 2]))
+				for reg in regionTuple:
+					bamIter = bamInfile.fetch(region = reg)
 					for x in bamIter:
 						print(str(x))
 				quit()
@@ -624,11 +629,6 @@ def main():
 	else:
 		printlog(f"[file: '{inputfile}'] unrecognized file type.")
 		printlog("program exiting.")
-
-	if args['header']:
-		if verbose:
-			printlog("VCF file header:")
-		printlog(vcfInfile.header)
 
 	if encryptFilePath != None:  # encrypt or decrypt selected SNPs
 		if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
