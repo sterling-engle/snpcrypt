@@ -14,9 +14,9 @@ usage: snpcrypt.py [-h] [-b] [-c COUNT] [-d DELIM] [-e] [-f FILE]
                    [inputfile]
 
 positional arguments:
-  inputfile             BAM or SNPs VCF input file [1000-genomes-phase-3_vcf-20150220
-                        _ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.2013
-                        0502.genotypes.vcf.gz]
+  inputfile             BAM/SAM or SNPs VCF input file [1000-genomes-phase-
+												3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a
+												.20130502.genotypes.vcf.gz]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -38,11 +38,11 @@ optional arguments:
                         remove --pos SNPs to this VCF file path [none]
   -s SNPS, --snps SNPS  number of SNPs to output [0, use -1 for all]
   -t, --verbose         enables verbose output [false]
-  -v, --header          output VCF header [false]
+  -v, --header          output BAM/SAM/VCF header [false]
   -w PASSWORD, --password PASSWORD
                         encrypted private key password [none]
   -x REGION, --region REGION
-                        eXtract BAM/SAM region(s), e.g. '1:100-105,2:1234:5678' [none]
+                        eXtract BAM region(s), e.g. '1:100-105,2:1234:5678' [none]
 
 CHROM  POS ID  REF ALT QUAL  FILTER  INFO  FORMAT
 ['alleles',
@@ -482,14 +482,14 @@ def getArgs():
 	ap.add_argument("-t", "--verbose", action="store_true",
 									help="enables verbose output [false]")
 	ap.add_argument("-v", "--header", action="store_true",
-									help="output VCF header [false]")
+									help="output BAM/SAM/VCF header [false]")
 	ap.add_argument("-w", "--password", type=ascii,
 									help="encrypted private key password [none]")
 	ap.add_argument("-x", "--region", type=ascii,
-									help="eXtract BAM/SAM region(s), e.g. '1:100-105,2:1234:5678' [none]")
+									help="eXtract BAM region(s), e.g. '1:100-105,2:1234:5678' [none]")
 	ap.add_argument('inputfile', nargs='?', type=ascii,
 									default = "1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz",
-									help="BAM or SNPs VCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
+									help="BAM/SAM or SNPs VCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
 	return vars(ap.parse_args())
 
 
@@ -611,6 +611,10 @@ def main():
 	elif filetype == ".sam":
 		try:
 			samInfile = AlignmentFile(inputfile, mode='r', check_sq=False, threads=4)
+			if args['header']:
+				if verbose:
+					printlog(f"SAM file '{inputfile}' header:")
+				printlog(samInfile.header)
 			samIter = samInfile.fetch()  # cannot extract regions from non-indexed SAM files
 			for x in samIter:
 				print(str(x))
