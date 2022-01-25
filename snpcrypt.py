@@ -10,11 +10,11 @@ under Python 3.9.7.
 
 usage: snpcrypt.py [-h] [-b] [-c COUNT] [-d DELIM] [-e] [-f FILE]
                    [-g GENKEYPATH] [-i] [-k KEYPATH] [-l LOG] [-p POS]
-                   [-r REMOVE] [-s SNPS] [-t] [-v] [-w PASSWORD]
+                   [-r REMOVE] [-s SNPS] [-t] [-v] [-w PASSWORD] [-x REGION]
                    [inputfile]
 
 positional arguments:
-  inputfile             SNPs VCF input file [1000-genomes-phase-3_vcf-20150220
+  inputfile             BAM or SNPs VCF input file [1000-genomes-phase-3_vcf-20150220
                         _ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.2013
                         0502.genotypes.vcf.gz]
 
@@ -41,6 +41,8 @@ optional arguments:
   -v, --header          output VCF header [false]
   -w PASSWORD, --password PASSWORD
                         encrypted private key password [none]
+  -x REGION, --region REGION
+                        eXtract BAM/SAM region, e.g. '1,10000,10005' [none]
 
 CHROM  POS ID  REF ALT QUAL  FILTER  INFO  FORMAT
 ['alleles',
@@ -484,10 +486,10 @@ def getArgs():
 	ap.add_argument("-w", "--password", type=ascii,
 									help="encrypted private key password [none]")
 	ap.add_argument("-x", "--region", type=ascii,
-									help="eXtract BAM/SAM region, e.g. 'chr1:15001-20000' [none]")
+									help="eXtract BAM region, e.g. '1,10000,10005' [none]")
 	ap.add_argument('inputfile', nargs='?', type=ascii,
 									default = "1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz",
-									help="SNPs VCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
+									help="BAM or SNPs VCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
 	return vars(ap.parse_args())
 
 
@@ -518,7 +520,7 @@ def main():
 		password = bytes(password.strip("'"), "ascii")
 	region = args['region']  # BAM/SAM file region to extract, if any, else None
 	if region != None:
-		region = region.strip("'")
+		regionTuple = tuple(region.strip("'").split(","))
 	genKeyPath = args['genkeypath']  # None if not set
 	keyPath = args['keypath']  # None if not set
 	encrypt = args['encrypt']  # default: False (decrypt)
@@ -583,7 +585,11 @@ def main():
 	elif filetype == ".bam":
 		try:
 			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
-			bamIter = bamInfile.fetch()
+			if region is None:
+				bamIter = bamInfile.fetch()
+			else:
+				bamIter = bamInfile.fetch(regionTuple[0], int(regionTuple[1]),
+																	int(regionTuple[2]))
 			for x in bamIter:
 				print(str(x))
 			quit()
@@ -594,7 +600,11 @@ def main():
 	elif filetype == ".sam":
 		try:
 			samInfile = AlignmentFile(inputfile, mode='r', check_sq=False, threads=4)
-			samIter = samInfile.fetch()
+			if region is None:
+				samIter = samInfile.fetch()
+			else:
+				samIter = samInfile.fetch(regionTuple[0], int(regionTuple[1]),
+																	int(regionTuple[2]))
 			for x in samIter:
 				print(str(x))
 			quit()
