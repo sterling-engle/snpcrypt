@@ -72,6 +72,7 @@ import os
 import sys
 
 import argparse  # command line parsing library
+import pysam
 from pysam import AlignmentFile
 from pysam import VariantFile
 from cryptography.fernet import Fernet
@@ -672,13 +673,17 @@ def main():
 			else:  # support a list of ranges
 				if writemode != None:
 					if verbose:
-						printlog(f"extracting region: {regionTuple} from {inputfile} to {outfile}")
+						printlog(f"extracting region(s): {regionTuple} from {inputfile} to {outfile}")
 					with AlignmentFile(outfile, mode=writemode, header=bamInfile.header) as outf:
 						for reg in regionTuple:
 							bamIter = bamInfile.fetch(region = reg)
 							for x in bamIter:
 								outf.write(x)
 						outf.close()
+					if writemode == "wb":  #  index BAM file
+						if verbose:
+							printlog(f"indexing {outfile}")
+						pysam.index(outfile)
 				else:
 					if verbose:
 						printlog(f"extracting region: {regionTuple} from {inputfile} ",
