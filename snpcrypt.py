@@ -33,6 +33,8 @@ optional arguments:
   -k KEYPATH, --keypath KEYPATH
                         RSA private and/or public key file path [none]
   -l LOG, --log LOG     log output file path [none]
+	-o OUTFILE, --outfile OUTFILE
+												BAM/SAM output file [none]
   -p POS, --pos POS     base reference position comma-separated list [none]
   -r REMOVE, --remove REMOVE
                         remove --pos SNPs to this VCF file path [none]
@@ -473,6 +475,8 @@ def getArgs():
 									help="RSA private and/or public key file path [none]")
 	ap.add_argument("-l", "--log", type=argparse.FileType('a'),
 									help="log output file path [none]")
+	ap.add_argument("-o", "--outfile", type=ascii,
+									help="BAM/SAM output file [none]")
 	ap.add_argument("-p", "--pos", type=ascii, default="",
 									help="base reference position comma-separated list [none]")
 	ap.add_argument("-r", "--remove", type=ascii,
@@ -502,9 +506,9 @@ def main():
 	inputfile = args['inputfile'].strip("'")
 	basename = os.path.basename(inputfile)
 	split = os.path.splitext(basename)
-	filetype = None
+	infiletype = None
 	if len(split) > 1:
-		filetype = split[len(split) - 1]
+		infiletype = split[len(split) - 1]
 	logFile = args['log']
 	verbose = args['verbose']
 	if verbose:
@@ -546,6 +550,15 @@ def main():
 
 	removeFilePath = args['remove']  # None if not set
 
+	outfiletype = None
+	outfile = args['outfile']  # BAM/SAM output file
+	if outfile != None:
+		outfile = args['outfile'].strip("'")
+		basename = os.path.basename(outfile)
+		split = os.path.splitext(basename)
+		if len(split) > 1:
+			outfiletype = split[len(split) - 1]
+
 	if args['pos'] != "''":
 		posTuple = tuple(args['pos'].strip("'").split(","))
 	else:
@@ -575,7 +588,7 @@ def main():
 																									 genKeyPublicFile,
 																									 password)
 	# ".gz" is .vcf.gz compressed VCF file
-	if filetype == ".vcf" or filetype == ".gz" or filetype == ".bcf":
+	if infiletype == ".vcf" or infiletype == ".gz" or infiletype == ".bcf":
 		try:
 			vcfInfile = VariantFile(inputfile, mode='r', threads=4)
 		except (FileNotFoundError, ValueError) as e:
@@ -640,7 +653,7 @@ def main():
 
 		vcfInfile.close()
 
-	elif filetype == ".bam":
+	elif infiletype == ".bam":
 		try:
 			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
 			if args['header']:
@@ -662,7 +675,7 @@ def main():
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
 			quit()
-	elif filetype == ".sam":
+	elif infiletype == ".sam":
 		try:
 			samInfile = AlignmentFile(inputfile, mode='r', check_sq=False, threads=4)
 			if args['header']:
@@ -677,7 +690,7 @@ def main():
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
 			quit()
-	elif filetype == ".cram":
+	elif infiletype == ".cram":
 		try:
 			vcfInfile = AlignmentFile(inputfile, mode='rc', threads=4)
 		except (FileNotFoundError, ValueError) as e:
