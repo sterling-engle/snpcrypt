@@ -586,6 +586,60 @@ def main():
 			if verbose:
 				printlog(f"VCF file '{inputfile}' header:")
 			printlog(vcfInfile.header)
+		if encryptFilePath != None:  # encrypt or decrypt selected SNPs
+			if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
+				if encrypt:
+					SNPcount = encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile,
+																posTuple, vcfInfile)
+				else:  # decrypt is the default
+					SNPcount = decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile,
+																vcfOutfile)
+			elif encrypt:  # symmetric encryption using Fernet
+				SNPcount = encryptFernet(encryptFilePath, encryptFile, encryptKeys, posTuple,
+																vcfInfile)
+			else:  # symmetric decryption using Fernet
+				SNPcount = decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile)
+		elif removeFilePath != None:
+			SNPcopyCount, SNPcount = removeSNPs(removeFilePath, posTuple, vcfInfile)
+		else:  # print plaintext SNPs
+			SNPcount = 0
+			for pos in posTuple:
+				for rec in vcfInfile.fetch(region = f"21:{pos}-{pos}"):
+					qual = rec.qual
+					if isinstance(qual, float):  # remove trailing zeroes
+						qual = f"{qual:.6f}".rstrip('0').rstrip('.')
+					if rec.pos == int(pos):
+						printlog (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts), qual,
+											getFilter(rec.filter), getInfo(rec.info),
+											getFormat(rec.format), getSamples(rec.samples, count, ids,
+											bases, sep=delim), sep=delim)
+						SNPcount += 1
+			if verbose and SNPcount > 0:
+				printlog(f"{SNPcount} selected SNPs output in plaintext")
+
+		if snpLimit > 0:
+			SNPcount = 0
+			try:
+				for rec in vcfInfile.fetch():
+					try:
+						qual = rec.qual
+						if isinstance(qual, float):  # remove trailing zeroes
+							qual = f"{qual:.6f}".rstrip('0').rstrip('.')
+						printlog (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts), qual,
+											getFilter(rec.filter), getInfo(rec.info), getFormat(rec.format),
+											getSamples(rec.samples, count, ids, bases))
+						SNPcount += 1
+						if SNPcount >= snpLimit:
+							if verbose:
+								printlog(f"{SNPcount} SNPs output in plaintext")
+							break
+					except ValueError as e:
+						printlog(f"[--snps={args['snps']}] ValueError ignored: {e}.")
+			except OSError as o:
+				printlog(f"[--snps={args['snps']}] OSError ignored: {o}.")
+
+		vcfInfile.close()
+
 	elif filetype == ".bam":
 		try:
 			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
@@ -633,60 +687,6 @@ def main():
 	else:
 		printlog(f"[file: '{inputfile}'] unrecognized file type.")
 		printlog("program exiting.")
-
-	if encryptFilePath != None:  # encrypt or decrypt selected SNPs
-		if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
-			if encrypt:
-				SNPcount = encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile,
-															posTuple, vcfInfile)
-			else:  # decrypt is the default
-				SNPcount = decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile,
-															vcfOutfile)
-		elif encrypt:  # symmetric encryption using Fernet
-			SNPcount = encryptFernet(encryptFilePath, encryptFile, encryptKeys, posTuple,
-															vcfInfile)
-		else:  # symmetric decryption using Fernet
-			SNPcount = decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile)
-	elif removeFilePath != None:
-		SNPcopyCount, SNPcount = removeSNPs(removeFilePath, posTuple, vcfInfile)
-	else:  # print plaintext SNPs
-		SNPcount = 0
-		for pos in posTuple:
-			for rec in vcfInfile.fetch(region = f"21:{pos}-{pos}"):
-				qual = rec.qual
-				if isinstance(qual, float):  # remove trailing zeroes
-					qual = f"{qual:.6f}".rstrip('0').rstrip('.')
-				if rec.pos == int(pos):
-					printlog (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts), qual,
-										getFilter(rec.filter), getInfo(rec.info),
-										getFormat(rec.format), getSamples(rec.samples, count, ids,
-										bases, sep=delim), sep=delim)
-					SNPcount += 1
-		if verbose and SNPcount > 0:
-			printlog(f"{SNPcount} selected SNPs output in plaintext")
-
-	if snpLimit > 0:
-		SNPcount = 0
-		try:
-			for rec in vcfInfile.fetch():
-				try:
-					qual = rec.qual
-					if isinstance(qual, float):  # remove trailing zeroes
-						qual = f"{qual:.6f}".rstrip('0').rstrip('.')
-					printlog (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts), qual,
-										getFilter(rec.filter), getInfo(rec.info), getFormat(rec.format),
-										getSamples(rec.samples, count, ids, bases))
-					SNPcount += 1
-					if SNPcount >= snpLimit:
-						if verbose:
-							printlog(f"{SNPcount} SNPs output in plaintext")
-						break
-				except ValueError as e:
-					printlog(f"[--snps={args['snps']}] ValueError ignored: {e}.")
-		except OSError as o:
-			printlog(f"[--snps={args['snps']}] OSError ignored: {o}.")
-
-	vcfInfile.close()
 
 if __name__ == "__main__":
 	main()
