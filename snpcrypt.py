@@ -81,14 +81,14 @@ from cryptography.hazmat.primitives.asymmetric import utils
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
 
-# accepts a variable number of arguments
+# accepts a variable number of arguments and prints to sys.stderr and logFile if open
 def printlog(*args, sep=" "):
 	if sep == "tab":
-		print(*args, sep='\t')
+		print(*args, file=sys.stderr, sep='\t')
 		if logFile is not None:
 			print(*args, file=logFile, sep='\t')
 	else:
-		print(*args)
+		print(*args, file=sys.stderr)
 		if logFile is not None:
 			print(*args, file=logFile)
 
@@ -654,6 +654,11 @@ def main():
 		vcfInfile.close()
 
 	elif infiletype == ".bam":
+		writemode = None
+		if outfiletype == ".bam":
+			writemode = "wb"
+		elif outfiletype == ".sam":
+			writemode = "w"
 		try:
 			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
 			if args['header']:
@@ -664,17 +669,27 @@ def main():
 				bamIter = bamInfile.fetch()
 				for x in bamIter:
 					print(str(x))
-					quit()
 			else:  # support a list of ranges
-				for reg in regionTuple:
-					bamIter = bamInfile.fetch(region = reg)
-					for x in bamIter:
-						print(str(x))
-				quit()
+				if writemode != None:
+					if verbose:
+						printlog(f"extracting region: {regionTuple} from {inputfile} to {outfile}")
+					with AlignmentFile(outfile, mode=writemode, header=bamInfile.header) as outf:
+						for reg in regionTuple:
+							bamIter = bamInfile.fetch(region = reg)
+							for x in bamIter:
+								outf.write(x)
+						outf.close()
+				else:
+					if verbose:
+						printlog(f"extracting region: {regionTuple} from {inputfile} ",
+										"to standard output")
+					for reg in regionTuple:
+						bamIter = bamInfile.fetch(region = reg)
+						for x in bamIter:
+							print(str(x))
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
-			quit()
 	elif infiletype == ".sam":
 		try:
 			samInfile = AlignmentFile(inputfile, mode='r', check_sq=False, threads=4)
@@ -689,14 +704,12 @@ def main():
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
-			quit()
 	elif infiletype == ".cram":
 		try:
 			vcfInfile = AlignmentFile(inputfile, mode='rc', threads=4)
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
-			quit()
 	else:
 		printlog(f"[file: '{inputfile}'] unrecognized file type.")
 		printlog("program exiting.")
