@@ -690,18 +690,27 @@ def main():
 										"to standard output")
 					samline = []
 					queryNames = []
+					readsList = []
+					refNames = []
+					refPos = []
+					numAlignedBases = []
+					queryPos = []
+					qualScores = []  # probably don't need it
+					sequences = []
 					for reg in regionTuple:
 						# bamIter = bamInfile.fetch(region = reg)
 						bamIter = bamInfile.pileup(region = reg, truncate = True)
 						for x in bamIter:  # x is of type pysam.PileupColumn
-							print(f"query names: {x.get_query_names()}")
-							print(f"number of reads: {x.nsegments}")
-							print(f"reference name: {x.reference_name}")
-							print(f"reference position: {x.reference_pos + 1}")
-							print(f"number of aligned bases: {x.get_num_aligned()}")
-							print(f"positions in read: {x.get_query_positions()}")
-							print(f"quality scores list: {x.get_mapping_qualities()}")
-							print(f"query sequences: {x.get_query_sequences(mark_matches=True, mark_ends=True, add_indels=True)}")
+							queryNames.append(x.get_query_names())
+							readsList.append(x.nsegments)
+							refNames.append(x.reference_name)
+							refPos.append(x.reference_pos + 1)  # note + 1
+							numAlignedBases.append(x.get_num_aligned())
+							queryPos.append(x.get_query_positions())
+							qualScores.append(x.get_mapping_qualities())
+							sequences.append(x.get_query_sequences())
+							# sequences.append(x.get_query_sequences(mark_matches=True, mark_ends=True,
+							#																			add_indels=True))
 							for p in x.pileups:
 								samline.append(p.alignment.to_string())
 								# print(p.alignment.to_string())
@@ -709,10 +718,69 @@ def main():
 					# print(samlines)
 					samitems = []
 					for s in samlines:
-						print(s)
+						if verbose:
+							printlog(s)
 						samitems.append(s.split('\t'))
 					for s in samitems:
-						print(s)
+						if verbose:
+							printlog(s)
+					if verbose:
+						printlog(f"query names: {queryNames}")
+						printlog(f"number of reads: {readsList}")
+						printlog(f"reference name: {refNames}")
+						printlog(f"reference position: {refPos}")
+						printlog(f"number of aligned bases: {numAlignedBases}")
+						printlog(f"positions in read: {queryPos}")
+						printlog(f"quality scores: {qualScores}")
+						printlog(f"query sequences: {sequences}")
+					for s in range(len(samitems)):  # replace sequence with N's to mask it
+						samitems[s][9] = "N" * len(samitems[s][9])
+					for q in range(len(queryNames)):
+						for i in range(len(queryNames[q])):
+							for s in range(len(samitems)):
+								if samitems[s][0] == queryNames[q][i]:
+									# first index is 0-based position
+									samitems[s][9] = samitems[s][9][:queryPos[q][i]] + sequences[q][i].upper()  + samitems[s][9][queryPos[q][i] + 1:]
+									# print(f"queryNames[{q}][{i}]: {queryNames[q][i]} at samitems[{s}]: {samitems[s]}")
+					if verbose:
+						for s in range(len(samitems)):
+							printlog(samitems[s])
+					with AlignmentFile("test.sam", mode="w", header=bamInfile.header) as outf:
+						for s in samitems:
+							a = pysam.AlignedSegment()
+							# could use fromstring(type cls, sam, AlignmentHeader header)
+							a.query_name = s[0]
+							a.flag = int(s[1])
+							a.reference_id = int(s[2]) - 1  # subtract 1 for 0 origin
+							a.reference_start = int(s[3]) - 1  # subtract 1 for 0 origin
+							a.mapping_quality = int(s[4])
+							a.cigarstring = s[5]
+							a.next_reference_name = s[6]
+							"""
+							if s[6] == "=":
+								a.next_reference_id = int(s[2]) - 1  # subtract 1 for 0 origin
+							else:
+								a.next_reference_id = int(s[6]) - 1  # subtract 1 for 0 origin
+							"""
+							a.next_reference_start = int(s[7]) - 1  # subtract 1 for 0 origin
+							a.template_length = int(s[8])
+							a.query_sequence = s[9]
+							a.query_qualities = pysam.qualitystring_to_array(s[10])
+							tags = []
+							for t in range(11, len(s)):
+								tagpieces = s[t].split(":")
+								tagtype = tagpieces[1]
+								if tagtype == "i":
+									tagpieces[1] = int(tagpieces[2])
+								elif tagtype == "f":
+									tagpieces[1] = float(tagpieces[2])
+								else:
+									tagpieces[1] = tagpieces[2]
+								tagpieces[2] = tagtype
+								tags.append(tagpieces)
+							a.set_tags(tags)
+							outf.write(a)
+
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
