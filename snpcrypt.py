@@ -666,7 +666,7 @@ def main():
 			tempfile = ".temp.bam"
 		elif outfiletype == ".sam":
 			writemode = "w"
-			tempfile = outfile
+			tempfile = ".temp.sam"
 		try:
 			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
 			if args['header']:
@@ -774,11 +774,11 @@ def main():
 								for x in bamIter:
 									outf.write(x)
 						outf.close()
+					if verbose:
+						printlog(f"sorting {outfile}")
+					pysam.sort("-o", outfile, tempfile)
+					os.remove(tempfile)
 					if writemode == "wb":  #  index BAM file
-						if verbose:
-							printlog(f"sorting {outfile}")
-						pysam.sort("-o", outfile, tempfile)
-						os.remove(tempfile)
 						if verbose:
 							printlog(f"indexing {outfile}")
 						pysam.index(outfile)
