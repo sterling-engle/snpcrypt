@@ -660,10 +660,13 @@ def main():
 
 	elif infiletype == ".bam":
 		writemode = None
+		tempfile = None
 		if outfiletype == ".bam":
 			writemode = "wb"
+			tempfile = ".temp.bam"
 		elif outfiletype == ".sam":
 			writemode = "w"
+			tempfile = outfile
 		try:
 			bamInfile = AlignmentFile(inputfile, mode='rb', threads=4)
 			if args['header']:
@@ -678,7 +681,7 @@ def main():
 				if writemode != None:
 					if verbose:
 						printlog(f"extracting region(s): {regionTuple} from {inputfile} to {outfile}")
-					with AlignmentFile(outfile, mode=writemode, header=bamInfile.header) as outf:
+					with AlignmentFile(tempfile, mode=writemode, header=bamInfile.header) as outf:
 						if mask:  # mask short reads
 							if verbose:
 								printlog("masking short reads")
@@ -772,6 +775,10 @@ def main():
 									outf.write(x)
 						outf.close()
 					if writemode == "wb":  #  index BAM file
+						if verbose:
+							printlog(f"sorting {outfile}")
+						pysam.sort("-o", outfile, tempfile)
+						os.remove(tempfile)
 						if verbose:
 							printlog(f"indexing {outfile}")
 						pysam.index(outfile)
