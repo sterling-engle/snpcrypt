@@ -688,10 +688,11 @@ def main():
 					if verbose:
 						printlog(f"extracting region: {regionTuple} from {inputfile}",
 										"to standard output")
+					samline = []
+					queryNames = []
 					for reg in regionTuple:
 						# bamIter = bamInfile.fetch(region = reg)
 						bamIter = bamInfile.pileup(region = reg, truncate = True)
-						# bamIter = bamInfile.pileup(region = reg)
 						for x in bamIter:  # x is of type pysam.PileupColumn
 							print(f"query names: {x.get_query_names()}")
 							print(f"number of reads: {x.nsegments}")
@@ -702,12 +703,16 @@ def main():
 							print(f"quality scores list: {x.get_mapping_qualities()}")
 							print(f"query sequences: {x.get_query_sequences(mark_matches=True, mark_ends=True, add_indels=True)}")
 							for p in x.pileups:
-								print(p.alignment.to_string())
-							# print(str(x))
-							# print((pysam.PileupRead.alignment).to_string())
-							# for p in pysam.PileupColumn.pileups:
-							#	print(p.alignment)
-							# print(pysam.PileupColumn.pileups)
+								samline.append(p.alignment.to_string())
+								# print(p.alignment.to_string())
+					samlines = list(dict.fromkeys(samline))
+					# print(samlines)
+					samitems = []
+					for s in samlines:
+						print(s)
+						samitems.append(s.split('\t'))
+					for s in samitems:
+						print(s)
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
