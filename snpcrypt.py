@@ -695,34 +695,31 @@ def main():
 					refPos = []
 					numAlignedBases = []
 					queryPos = []
-					qualScores = []  # probably don't need it
+					qualScores = []
 					sequences = []
 					for reg in regionTuple:
 						# bamIter = bamInfile.fetch(region = reg)
 						bamIter = bamInfile.pileup(region = reg, truncate = True)
 						for x in bamIter:  # x is of type pysam.PileupColumn
 							queryNames.append(x.get_query_names())
-							readsList.append(x.nsegments)
-							refNames.append(x.reference_name)
-							refPos.append(x.reference_pos + 1)  # note + 1
-							numAlignedBases.append(x.get_num_aligned())
 							queryPos.append(x.get_query_positions())
-							qualScores.append(x.get_mapping_qualities())
 							sequences.append(x.get_query_sequences())
-							# sequences.append(x.get_query_sequences(mark_matches=True, mark_ends=True,
-							#																			add_indels=True))
+							if verbose:
+								readsList.append(x.nsegments)
+								refNames.append(x.reference_name)
+								refPos.append(x.reference_pos + 1)  # note + 1
+								numAlignedBases.append(x.get_num_aligned())
+								qualScores.append(x.get_mapping_qualities())
 							for p in x.pileups:
 								samline.append(p.alignment.to_string())
-								# print(p.alignment.to_string())
 					samlines = list(dict.fromkeys(samline))
-					# print(samlines)
 					samitems = []
 					for s in samlines:
 						if verbose:
 							printlog(s)
 						samitems.append(s.split('\t'))
-					for s in samitems:
-						if verbose:
+					if verbose:
+						for s in samitems:
 							printlog(s)
 					if verbose:
 						printlog(f"query names: {queryNames}")
@@ -741,7 +738,6 @@ def main():
 								if samitems[s][0] == queryNames[q][i]:
 									# first index is 0-based position
 									samitems[s][9] = samitems[s][9][:queryPos[q][i]] + sequences[q][i].upper()  + samitems[s][9][queryPos[q][i] + 1:]
-									# print(f"queryNames[{q}][{i}]: {queryNames[q][i]} at samitems[{s}]: {samitems[s]}")
 					if verbose:
 						for s in range(len(samitems)):
 							printlog(samitems[s])
@@ -756,12 +752,6 @@ def main():
 							a.mapping_quality = int(s[4])
 							a.cigarstring = s[5]
 							a.next_reference_name = s[6]
-							"""
-							if s[6] == "=":
-								a.next_reference_id = int(s[2]) - 1  # subtract 1 for 0 origin
-							else:
-								a.next_reference_id = int(s[6]) - 1  # subtract 1 for 0 origin
-							"""
 							a.next_reference_start = int(s[7]) - 1  # subtract 1 for 0 origin
 							a.template_length = int(s[8])
 							a.query_sequence = s[9]
