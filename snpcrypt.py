@@ -457,6 +457,113 @@ def removeSNPs(removeFilePath, posTuple, vcfInfile):
 	return SNPcopyCount, SNPcount
 
 
+#
+# extract regions (masking if mask is True) in regionTuple from bamInfile to tempfile
+# with writemode, sorting the output to outfile and indexing it if it is a BAM file
+#
+def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
+	with AlignmentFile(tempfile, mode=writemode, header=bamInfile.header) as outf:
+		if mask:  # mask short reads?
+			if verbose:
+				printlog("masking short reads with N's")
+			samline = []
+			queryNames = []
+			readsList = []
+			refNames = []
+			refPos = []
+			numAlignedBases = []
+			queryPos = []
+			qualScores = []
+			sequences = []
+			for reg in regionTuple:
+				bamIter = bamInfile.pileup(region = reg, truncate = True)
+				for x in bamIter:  # x is of type pysam.PileupColumn
+					queryNames.append(x.get_query_names())
+					queryPos.append(x.get_query_positions())
+					sequences.append(x.get_query_sequences())
+					if verbose:
+						readsList.append(x.nsegments)
+						refNames.append(x.reference_name)
+						refPos.append(x.reference_pos + 1)  # note + 1
+						numAlignedBases.append(x.get_num_aligned())
+						qualScores.append(x.get_mapping_qualities())
+					for p in x.pileups:
+						samline.append(p.alignment.to_string())
+			samlines = list(dict.fromkeys(samline))
+			samitems = []
+			for s in samlines:
+				if verbose:
+					printlog(s)
+				samitems.append(s.split('\t'))
+			if verbose:
+				for s in samitems:
+					printlog(s)
+			if verbose:
+				printlog(f"query names: {queryNames}")
+				printlog(f"number of reads: {readsList}")
+				printlog(f"reference name: {refNames}")
+				printlog(f"reference position: {refPos}")
+				printlog(f"number of aligned bases: {numAlignedBases}")
+				printlog(f"positions in read: {queryPos}")
+				printlog(f"quality scores: {qualScores}")
+				printlog(f"query sequences: {sequences}")
+			for s in range(len(samitems)):  # replace sequence with N's to mask it
+				samitems[s][9] = "N" * len(samitems[s][9])
+			for q in range(len(queryNames)):
+				for i in range(len(queryNames[q])):
+					for s in range(len(samitems)):
+						if samitems[s][0] == queryNames[q][i]:
+							# first index is 0-based position
+							samitems[s][9] = samitems[s][9][:queryPos[q][i]] + sequences[q][i].upper()  + samitems[s][9][queryPos[q][i] + 1:]
+			if verbose:
+				for s in range(len(samitems)):
+					printlog(samitems[s])
+			for s in samitems:
+				a = pysam.AlignedSegment()
+				# could use fromstring(type cls, sam, AlignmentHeader header)
+				a.query_name = s[0]
+				a.flag = int(s[1])
+				a.reference_id = int(s[2]) - 1  # subtract 1 for 0 origin
+				a.reference_start = int(s[3]) - 1  # subtract 1 for 0 origin
+				a.mapping_quality = int(s[4])
+				a.cigarstring = s[5]
+				a.next_reference_name = s[6]
+				a.next_reference_start = int(s[7]) - 1  # subtract 1 for 0 origin
+				a.template_length = int(s[8])
+				a.query_sequence = s[9]
+				a.query_qualities = pysam.qualitystring_to_array(s[10])
+				tags = []
+				for t in range(11, len(s)):
+					tagpieces = s[t].split(":")
+					tagtype = tagpieces[1]
+					if tagtype == "i":
+						tagpieces[1] = int(tagpieces[2])
+					elif tagtype == "f":
+						tagpieces[1] = float(tagpieces[2])
+					else:
+						tagpieces[1] = tagpieces[2]
+					tagpieces[2] = tagtype
+					tags.append(tagpieces)
+				a.set_tags(tags)
+				outf.write(a)
+		else:
+			for reg in regionTuple:
+				bamIter = bamInfile.fetch(region = reg)
+				# bamIter = bamInfile.pileup(region = reg)
+				for x in bamIter:
+					outf.write(x)
+		outf.close()
+	if verbose:
+		printlog(f"sorting {outfile}")
+	pysam.sort("-@", "4", "-o", outfile, tempfile)
+	os.remove(tempfile)
+	if writemode == "wb":  #  index BAM file
+		if verbose:
+			printlog(f"indexing {outfile}")
+		pysam.index("-@", "4", outfile)
+	return
+
+
 def getArgs():
 	ap = argparse.ArgumentParser()  # argument parser
 	ap.add_argument("-b", "--bases", action="store_true",
@@ -672,7 +779,7 @@ def main():
 			if args['header']:
 				if verbose:
 					printlog(f"BAM file '{inputfile}' header:")
-				printlog(bamInfile.header)
+				print(bamInfile.header)
 			if region is None:
 				bamIter = bamInfile.fetch()
 				for x in bamIter:
@@ -681,114 +788,14 @@ def main():
 				if writemode != None:
 					if verbose:
 						printlog(f"extracting region(s): {regionTuple} from {inputfile} to {outfile}")
-					with AlignmentFile(tempfile, mode=writemode, header=bamInfile.header) as outf:
-						if mask:  # mask short reads
-							if verbose:
-								printlog("masking short reads")
-							samline = []
-							queryNames = []
-							readsList = []
-							refNames = []
-							refPos = []
-							numAlignedBases = []
-							queryPos = []
-							qualScores = []
-							sequences = []
-							for reg in regionTuple:
-								# bamIter = bamInfile.fetch(region = reg)
-								bamIter = bamInfile.pileup(region = reg, truncate = True)
-								for x in bamIter:  # x is of type pysam.PileupColumn
-									queryNames.append(x.get_query_names())
-									queryPos.append(x.get_query_positions())
-									sequences.append(x.get_query_sequences())
-									if verbose:
-										readsList.append(x.nsegments)
-										refNames.append(x.reference_name)
-										refPos.append(x.reference_pos + 1)  # note + 1
-										numAlignedBases.append(x.get_num_aligned())
-										qualScores.append(x.get_mapping_qualities())
-									for p in x.pileups:
-										samline.append(p.alignment.to_string())
-							samlines = list(dict.fromkeys(samline))
-							samitems = []
-							for s in samlines:
-								if verbose:
-									printlog(s)
-								samitems.append(s.split('\t'))
-							if verbose:
-								for s in samitems:
-									printlog(s)
-							if verbose:
-								printlog(f"query names: {queryNames}")
-								printlog(f"number of reads: {readsList}")
-								printlog(f"reference name: {refNames}")
-								printlog(f"reference position: {refPos}")
-								printlog(f"number of aligned bases: {numAlignedBases}")
-								printlog(f"positions in read: {queryPos}")
-								printlog(f"quality scores: {qualScores}")
-								printlog(f"query sequences: {sequences}")
-							for s in range(len(samitems)):  # replace sequence with N's to mask it
-								samitems[s][9] = "N" * len(samitems[s][9])
-							for q in range(len(queryNames)):
-								for i in range(len(queryNames[q])):
-									for s in range(len(samitems)):
-										if samitems[s][0] == queryNames[q][i]:
-											# first index is 0-based position
-											samitems[s][9] = samitems[s][9][:queryPos[q][i]] + sequences[q][i].upper()  + samitems[s][9][queryPos[q][i] + 1:]
-							if verbose:
-								for s in range(len(samitems)):
-									printlog(samitems[s])
-							for s in samitems:
-								a = pysam.AlignedSegment()
-								# could use fromstring(type cls, sam, AlignmentHeader header)
-								a.query_name = s[0]
-								a.flag = int(s[1])
-								a.reference_id = int(s[2]) - 1  # subtract 1 for 0 origin
-								a.reference_start = int(s[3]) - 1  # subtract 1 for 0 origin
-								a.mapping_quality = int(s[4])
-								a.cigarstring = s[5]
-								a.next_reference_name = s[6]
-								a.next_reference_start = int(s[7]) - 1  # subtract 1 for 0 origin
-								a.template_length = int(s[8])
-								a.query_sequence = s[9]
-								a.query_qualities = pysam.qualitystring_to_array(s[10])
-								tags = []
-								for t in range(11, len(s)):
-									tagpieces = s[t].split(":")
-									tagtype = tagpieces[1]
-									if tagtype == "i":
-										tagpieces[1] = int(tagpieces[2])
-									elif tagtype == "f":
-										tagpieces[1] = float(tagpieces[2])
-									else:
-										tagpieces[1] = tagpieces[2]
-									tagpieces[2] = tagtype
-									tags.append(tagpieces)
-								a.set_tags(tags)
-								outf.write(a)
-
-						else:
-							for reg in regionTuple:
-								bamIter = bamInfile.fetch(region = reg)
-								# bamIter = bamInfile.pileup(region = reg)
-								for x in bamIter:
-									outf.write(x)
-						outf.close()
-					if verbose:
-						printlog(f"sorting {outfile}")
-					pysam.sort("-o", outfile, tempfile)
-					os.remove(tempfile)
-					if writemode == "wb":  #  index BAM file
-						if verbose:
-							printlog(f"indexing {outfile}")
-						pysam.index(outfile)
+					extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile)
 				else:
 					if verbose:
 						printlog(f"extracting unmasked region: {regionTuple} from {inputfile}",
 										"to standard output")
 					for reg in regionTuple:
 						bamIter = bamInfile.fetch(region = reg)
-						for x in bamIter:  # x is of type pysam.PileupColumn
+						for x in bamIter:
 							print(str(x))
 
 		except (FileNotFoundError, ValueError) as e:
