@@ -817,7 +817,14 @@ def main():
 			printlog("program exiting.")
 	elif infiletype == ".cram":
 		try:
-			vcfInfile = AlignmentFile(inputfile, mode='rc', threads=4)
+			cramInfile = AlignmentFile(inputfile, mode='rc', threads=4)
+			if args['header']:
+				if verbose:
+					printlog(f"CRAM file '{inputfile}' header:")
+				printlog(cramInfile.header)
+			cramIter = cramInfile.fetch()
+			for x in cramIter:
+				print(str(x))
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
