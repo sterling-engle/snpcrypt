@@ -23,8 +23,7 @@ optional arguments:
   -b, --bases           include DNA bases with SNPs instead of indices [false]
   -c COUNT, --count COUNT
                         count of samples to output [all]
-  -d DELIM, --delim DELIM
-                        delimiter between fields [tab]
+  --delim DELIM					delimiter between fields [tab]
   -e, --encrypt         encrypt selected SNPs to --file=path [false]
   -f FILE, --file FILE  encryption file [none]
   -g GENKEYPATH, --genkeypath GENKEYPATH
@@ -576,6 +575,33 @@ def encryptRegions(bamFile, RSAkeyFile, public_key, encryptFile):
 				printlog(f"{bamFile} extracted short reads encrypted to {bamFile + '.crypt'}")
 				printlog("  with unique symmetric key protected by RSA public key in "
 								f"{bamFile + '.key'}")
+	return
+
+# decrypt bamFile selected short read regions with RSA-protected symmetric key
+def decryptRegions(bamFile, RSAkeyFile, private_key, encryptFile):
+	if bamFile != None:
+		if verbose:
+			printlog(f"decrypting extracted regions to: {bamFile} from {bamFile + '.crypt'}")
+			printlog(f"     using RSA-protected key in: {bamFile + '.key'}")
+		with RSAkeyFile as ek:
+			ciphertext = ek.read(512)
+			key = private_key.decrypt(
+											ciphertext,
+											padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+											algorithm=hashes.SHA256(),
+											label=None))
+			if verbose:
+				printlog(f"           Fernet symmetric key: {key}")
+			f = Fernet(key)
+			with encryptFile as ef:
+				cryptBamData = ef.read()
+				with open(bamFile, "wb") as bf:
+					bf.write(f.decrypt(cryptBamData))
+			if verbose:
+				printlog(f"{bamFile} extracted short reads decrypted from {bamFile + '.crypt'}")
+				printlog("  with unique symmetric key protected by RSA public key in "
+								f"{bamFile + '.key'}")
+	return
 
 #
 # initialize and parse the command line arguments
@@ -586,10 +612,14 @@ def getArgs():
 									help="include DNA bases with SNPs instead of indices [false]")
 	ap.add_argument("-c", "--count", type=int, default=-1,
 									help="count of samples to output [all]")
-	ap.add_argument("-d", "--delim", type=ascii, default="tab",
+	ap.add_argument("--delim", type=ascii, default="tab",
 									help="delimiter between fields [tab]")
+	ap.add_argument("-d", "--decrypt", action="store_true",
+									help="decrypt selected SNPs to --file=path.vcf or "
+									"extracted BAM regions to inputfile.bam from inputfile.bam.crypt [false]")
 	ap.add_argument("-e", "--encrypt", action="store_true",
-									help="encrypt selected SNPs to --file=path [false]")
+									help="encrypt selected SNPs to --file=path.vcf.crypt or "
+									"extracted BAM region to --outfile=path.crypt [false]")
 	ap.add_argument("-f", "--file", type=ascii,
 									help="encryption file [none]")
 	ap.add_argument("-g", "--genkeypath", type=ascii,
@@ -656,7 +686,11 @@ def main():
 		regionTuple = tuple(region.strip("'").split(","))
 	genKeyPath = args['genkeypath']  # None if not set
 	keyPath = args['keypath']  # None if not set
-	encrypt = args['encrypt']  # default: False (decrypt)
+	decrypt = args['decrypt']  # default: False
+	encrypt = args['encrypt']  # default: False
+	if decrypt and encrypt:
+		printlog("error: cannot use --decrypt and --encrypt options on the same command line")
+		quit()
 	encryptFilePath = args['file']  # None if not set
 	if encryptFilePath != None:
 		encryptFilePath = encryptFilePath.strip("'")
@@ -664,18 +698,26 @@ def main():
 			if encrypt:  # symmetric encryption using public key to protect the key
 				encryptFile = open(encryptFilePath + ".vcf.crypt", "wb") # write bytes
 				RSAkeyFile = open(encryptFilePath + ".vcf.key", "wb")  # write bytes
-			else:  # decrypt using private key to get symmetric decryption key
+			elif decrypt:  # decrypt using private key to get symmetric decryption key
 				encryptFile = open(encryptFilePath + ".vcf.crypt", "rb") # read bytes
 				RSAkeyFile = open(encryptFilePath + ".vcf.key", "rb")  # read bytes
 				vcfOutfile = open(encryptFilePath + ".vcf", "wb")  # write decrypted bytes
+			else:
+				printlog("error: --file (-f) option requires either --decrypt (-d) "
+								"or --encrypt (-e)")
+				quit()
 		else:  # perform symmetric per-SNP encryption using Fernet
 			if encrypt:
 				encryptFile = open(encryptFilePath + ".vcf.SNPcrypt", "wb") # write byte
 				encryptKeys = open(encryptFilePath + ".vcf.SNPkeys", "wb")  # write byte
-			else:
+			elif decrypt:
 				encryptFile = open(encryptFilePath + ".vcf.SNPcrypt", "rb") # read bytes
 				encryptKeys = open(encryptFilePath + ".vcf.SNPkeys", "rb")  # read bytes
 				vcfOutfile = open(encryptFilePath + ".vcf", "wb")  # write decrypted bytes
+			else:
+				printlog("error: --file (-f) option requires either --decrypt (-d) "
+								"or --encrypt (-e)")
+				quit()
 
 	removeFilePath = args['remove']  # None if not set
 
@@ -734,13 +776,13 @@ def main():
 				if encrypt:
 					SNPcount = encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile,
 																posTuple, vcfInfile)
-				else:  # decrypt is the default
+				elif decrypt:
 					SNPcount = decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile,
 																vcfOutfile)
 			elif encrypt:  # symmetric encryption using Fernet
 				SNPcount = encryptFernet(encryptFilePath, encryptFile, encryptKeys, posTuple,
 																vcfInfile)
-			else:  # symmetric decryption using Fernet
+			elif decrypt:  # symmetric decryption using Fernet
 				SNPcount = decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile)
 		elif removeFilePath != None:
 			SNPcopyCount, SNPcount = removeSNPs(removeFilePath, posTuple, vcfInfile)
@@ -782,6 +824,14 @@ def main():
 				printlog(f"[--snps={args['snps']}] OSError ignored: {o}.")
 
 		vcfInfile.close()
+
+	elif infiletype == ".bam" and decrypt:
+		if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
+			RSAkeyFile = open(inputfile + ".key", "rb")  # read bytes
+			encryptFile = open(inputfile + ".crypt", "rb")  # read bytes
+			decryptRegions(inputfile, RSAkeyFile, private_key, encryptFile)
+		else:  # symmetric decryption using Fernet
+			quit()
 
 	elif infiletype == ".bam":
 		writemode = None
