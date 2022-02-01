@@ -472,7 +472,7 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 					queryNames.append(x.get_query_names())
 					queryPos.append(x.get_query_positions())
 					sequences.append(x.get_query_sequences())
-					if verbose:
+					if verbose and trace:
 						readsList.append(x.nsegments)
 						refNames.append(x.reference_name)
 						refPos.append(x.reference_pos + 1)  # note + 1
@@ -483,13 +483,12 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 			samlines = list(dict.fromkeys(samline))
 			samitems = []
 			for s in samlines:
-				if verbose:
+				if verbose and trace:
 					printlog(s)
 				samitems.append(s.split('\t'))
-			if verbose:
+			if verbose and trace:
 				for s in samitems:
 					printlog(s)
-			if verbose:
 				printlog(f"query names: {queryNames}")
 				printlog(f"number of reads: {readsList}")
 				printlog(f"reference name: {refNames}")
@@ -506,7 +505,7 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 						if samitems[s][0] == queryNames[q][i]:
 							# first index is 0-based position
 							samitems[s][9] = samitems[s][9][:queryPos[q][i]] + sequences[q][i].upper()  + samitems[s][9][queryPos[q][i] + 1:]
-			if verbose:
+			if verbose and trace:
 				for s in range(len(samitems)):
 					printlog(samitems[s])
 			for s in samitems:
@@ -628,7 +627,9 @@ def getArgs():
 def main():
 	global logFile  # output file for printlog(s) [default: None]
 	global verbose	# verbose output if True [default: False]
+	global trace		# detailed trace output if True
 
+	trace = False
 	args = getArgs()
 	inputfile = args['inputfile']
 	inputfile = args['inputfile'].strip("'")
