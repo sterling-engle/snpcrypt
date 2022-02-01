@@ -73,11 +73,11 @@ import os
 import sys
 
 import argparse  # command line parsing library
-import pysam
-from pysam import AlignmentFile
-from pysam import VariantFile
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives.asymmetric import rsa
+import pysam  # python lightweight wrapper of the htslib C-API
+from pysam import AlignmentFile  # reads BAM/SAM files
+from pysam import VariantFile  # reads VCF files
+from cryptography.fernet import Fernet  # symmetric encryption
+from cryptography.hazmat.primitives.asymmetric import rsa  # RSA asymmetric encryption
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric import utils
 from cryptography.hazmat.primitives import serialization
@@ -187,7 +187,6 @@ def getSamples(samples, count=sys.maxsize, ids=False, bases=False, sep="tab"):
 				break
 	return sampleStr
 
-
 #
 # convert a variable list of arguments to bytes and return
 #
@@ -206,7 +205,6 @@ def makeBytes(*args, sep="tab"):
 			arg = sep + arg
 			rv += bytes(arg, "ascii")
 	return rv
-
 
 #
 # reads private and/or public RSA keys from supplied files and returns them
@@ -231,7 +229,6 @@ def readPrivatePublicKeys(privateFile, publicFile, password):
 		if verbose:
 			printlog(f"         RSA public key object: {public_key}")
 	return private_key, public_key
-
 
 #
 # generates and returns private and public RSA keys, after saving them in files
@@ -272,7 +269,6 @@ def genPrivatePublicKeys(privateFile, publicFile, password):
 	# test loading of new private and public keys and return them
 	return readPrivatePublicKeys(privateFile, publicFile, password)
 
-
 # encrypt selected SNPs with RSA-protected symmetric key
 def encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile, posTuple,
 								vcfInfile):
@@ -309,7 +305,6 @@ def encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile, posTuple,
 									"key protected by RSA public key")
 	return SNPcount
 
-
 def decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile, vcfOutfile):
 	SNPcount = 0
 	if encryptFilePath != None:  # decrypt selected SNPs with RSA-protected symmetric key
@@ -342,7 +337,6 @@ def decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile, vcfOutfil
 							"key protected by RSA public key")
 	return SNPcount
 
-
 def encryptFernet(encryptFilePath, encryptFile, encryptKeys, posTuple, vcfInfile):
 	SNPcount = 0
 	if encryptFilePath != None:  # encrypt selected SNPs using Fernet
@@ -373,7 +367,6 @@ def encryptFernet(encryptFilePath, encryptFile, encryptKeys, posTuple, vcfInfile
 			printlog(f"{SNPcount} selected SNPs encrypted using individual symmetric keys")
 	return SNPcount
 
-
 def decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile):
 	SNPcount = 0
 	if encryptFilePath != None:  # encrypt selected SNPs using Fernet
@@ -399,7 +392,6 @@ def decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile):
 		if verbose:
 			printlog(f"{SNPcount} SNPs decrypted using individual symmetric keys")
 	return SNPcount
-
 
 def removeSNPs(removeFilePath, posTuple, vcfInfile):
 	SNPcopyCount = 0
@@ -455,7 +447,6 @@ def removeSNPs(removeFilePath, posTuple, vcfInfile):
 		printlog(f"{SNPcopyCount} non-identity SNPs output to VCF file and "
 						f"{SNPcount} identity SNPs removed")
 	return SNPcopyCount, SNPcount
-
 
 #
 # extract regions (masking if mask is True) in regionTuple from bamInfile to tempfile
@@ -563,7 +554,33 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 		pysam.index("-@", "4", outfile)
 	return
 
+# encrypt bamFile selected short read regions with RSA-protected symmetric key
+def encryptRegions(bamFile, RSAkeyFile, public_key, encryptFile):
+	if bamFile != None:
+		if verbose:
+			printlog(f"encrypting extracted regions to: {bamFile + '.crypt'}")
+			printlog(f"      with RSA-protected key in: {bamFile + '.key'}")
+		with RSAkeyFile as ek:
+			key = Fernet.generate_key()
+			ciphertext = public_key.encrypt(key,
+											padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+											algorithm=hashes.SHA256(),
+											label=None))
+			ek.write(ciphertext)
+			f = Fernet(key)
+			with open(bamFile, "rb") as bf:
+				bamData = bf.read()
+				with encryptFile as ef:
+					ef.write(f.encrypt(bamData))
+			os.remove(bamFile)
+			if verbose:
+				printlog(f"{bamFile} extracted short reads encrypted to {bamFile + '.crypt'}")
+				printlog("  with unique symmetric key protected by RSA public key in "
+								f"{bamFile + '.key'}")
 
+#
+# initialize and parse the command line arguments
+#
 def getArgs():
 	ap = argparse.ArgumentParser()  # argument parser
 	ap.add_argument("-b", "--bases", action="store_true",
@@ -710,7 +727,7 @@ def main():
 		if args['header']:
 			if verbose:
 				printlog(f"VCF file '{inputfile}' header:")
-			printlog(vcfInfile.header)
+			print(vcfInfile.header)
 		if encryptFilePath != None:  # encrypt or decrypt selected SNPs
 			if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
 				if encrypt:
@@ -789,6 +806,17 @@ def main():
 					if verbose:
 						printlog(f"extracting region(s): {regionTuple} from {inputfile} to {outfile}")
 					extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile)
+					if encrypt:
+						if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
+							RSAkeyFile = open(outfile + ".key", "wb")  # write bytes
+							encryptFile = open(outfile + ".crypt", "wb")  # write bytes
+							encryptRegions(outfile, RSAkeyFile, public_key, encryptFile)
+						else:  # symmetric encryption using Fernet
+							quit()
+							# SNPcount = encryptRegionsFernet(outfile, encryptFile, encryptKeys)
+							# SNPcount = encryptRegionsFernet(outfile, encryptFile)
+					# else:  # symmetric decryption using Fernet
+					#	SNPcount = decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile)
 				else:
 					if verbose:
 						printlog(f"extracting unmasked region: {regionTuple} from {inputfile}",
