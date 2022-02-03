@@ -730,7 +730,7 @@ def encryptFileFernet(inputfile, FernetKeyFile, cryptFile):
 				printlog(f"  with symmetric key in {inputfile + '.symkey'}")
 	return
 
-# decrypt bamFile selected short read regions with symmetric key
+# decrypt inputfile with symmetric key
 def decryptFileFernet(outputfile, FernetKeyFile, cryptFile):
 	if outputfile != None:
 		if verbose:
