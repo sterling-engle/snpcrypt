@@ -274,13 +274,13 @@ def genPrivatePublicKeys(privateFile, publicFile, password):
 	return readPrivatePublicKeys(privateFile, publicFile, password)
 
 # encrypt selected SNPs with RSA-protected symmetric key
-def encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile, posTuple,
+def encryptSNPs(cryptFilePath, RSAkeyFile, public_key, cryptFile, posTuple,
 								vcfInfile):
 	SNPcount = 0
-	if encryptFilePath != None:  # encrypt selected SNPs
+	if cryptFilePath != None:  # encrypt selected SNPs
 		if verbose:
-			printlog(f"   encrypting selected SNPs to: {encryptFilePath + '.vcf.crypt'}")
-			printlog(f"     with RSA-protected key in: {encryptFilePath + '.vcf.key'}")
+			printlog(f"   encrypting selected SNPs to: {cryptFilePath + '.vcf.crypt'}")
+			printlog(f"     with RSA-protected key in: {cryptFilePath + '.vcf.key'}")
 		with RSAkeyFile as ek:
 			key = Fernet.generate_key()
 			ciphertext = public_key.encrypt(key,
@@ -289,7 +289,7 @@ def encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile, posTuple,
 											label=None))
 			ek.write(ciphertext)
 			f = Fernet(key)
-			with encryptFile as ef:
+			with cryptFile as ef:
 				for pos in posTuple:
 					for rec in vcfInfile.fetch(region = f"21:{pos}-{pos}"):
 						qual = rec.qual
@@ -309,13 +309,13 @@ def encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile, posTuple,
 									"key protected by RSA public key")
 	return SNPcount
 
-def decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile, vcfOutfile):
+def decryptSNPs(cryptFilePath, RSAkeyFile, private_key, cryptFile, vcfOutfile):
 	SNPcount = 0
-	if encryptFilePath != None:  # decrypt selected SNPs with RSA-protected symmetric key
+	if cryptFilePath != None:  # decrypt selected SNPs with RSA-protected symmetric key
 		if verbose:
-			printlog(f" decrypting selected SNPs from: {encryptFilePath + '.vcf.crypt'}")
-			printlog(f"     with RSA-protected key in: {encryptFilePath + '.vcf.key'}")
-			printlog(f"                 decrypting to: {encryptFilePath + '.vcf'}")
+			printlog(f" decrypting selected SNPs from: {cryptFilePath + '.vcf.crypt'}")
+			printlog(f"     with RSA-protected key in: {cryptFilePath + '.vcf.key'}")
+			printlog(f"                 decrypting to: {cryptFilePath + '.vcf'}")
 		with RSAkeyFile as ek:
 			ciphertext = ek.read(512)
 			key = private_key.decrypt(
@@ -326,7 +326,7 @@ def decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile, vcfOutfil
 			if verbose:
 				printlog(f"          Fernet symmetric key: {key}")
 			f = Fernet(key)
-			with encryptFile as ef:
+			with cryptFile as ef:
 				with vcfOutfile as vcf:
 					while True:
 						cryptLine = ef.readline()
@@ -341,13 +341,13 @@ def decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile, vcfOutfil
 							"key protected by RSA public key")
 	return SNPcount
 
-def encryptFernet(encryptFilePath, encryptFile, encryptKeys, posTuple, vcfInfile):
+def encryptFernet(cryptFilePath, cryptFile, encryptKeys, posTuple, vcfInfile):
 	SNPcount = 0
-	if encryptFilePath != None:  # encrypt selected SNPs using Fernet
+	if cryptFilePath != None:  # encrypt selected SNPs using Fernet
 		if verbose:
-			printlog(f"                 encrypting to: {encryptFilePath + '.vcf.SNPcrypt'}")
-			printlog(f" individual SNP symmetric keys: {encryptFilePath + '.vcf.SNPkeys'}")
-		with encryptFile as ef:
+			printlog(f"                 encrypting to: {cryptFilePath + '.vcf.SNPcrypt'}")
+			printlog(f" individual SNP symmetric keys: {cryptFilePath + '.vcf.SNPkeys'}")
+		with cryptFile as ef:
 			with encryptKeys as ek:
 				for pos in posTuple:
 					for rec in vcfInfile.fetch(region = f"21:{pos}-{pos}"):
@@ -371,14 +371,14 @@ def encryptFernet(encryptFilePath, encryptFile, encryptKeys, posTuple, vcfInfile
 			printlog(f"{SNPcount} selected SNPs encrypted using individual symmetric keys")
 	return SNPcount
 
-def decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile):
+def decryptFernet(cryptFilePath, cryptFile, encryptKeys, vcfOutfile):
 	SNPcount = 0
-	if encryptFilePath != None:  # encrypt selected SNPs using Fernet
+	if cryptFilePath != None:  # encrypt selected SNPs using Fernet
 		if verbose:
-			printlog(f"               decrypting from: {encryptFilePath + '.vcf.SNPcrypt'}")
-			printlog(f" individual SNP symmetric keys: {encryptFilePath + '.vcf.SNPkeys'}")
-			printlog(f"                 decrypting to: {encryptFilePath + '.vcf'}")
-		with encryptFile as ef:
+			printlog(f"               decrypting from: {cryptFilePath + '.vcf.SNPcrypt'}")
+			printlog(f" individual SNP symmetric keys: {cryptFilePath + '.vcf.SNPkeys'}")
+			printlog(f"                 decrypting to: {cryptFilePath + '.vcf'}")
+		with cryptFile as ef:
 			with encryptKeys as ek:
 				with vcfOutfile as vcf:
 					while True:
@@ -558,7 +558,7 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 	return
 
 # encrypt bamFile selected short read regions with RSA-protected symmetric key
-def encryptRegions(bamFile, RSAkeyFile, public_key, encryptFile):
+def encryptRegions(bamFile, RSAkeyFile, public_key, cryptFile):
 	if bamFile != None:
 		if verbose:
 			printlog(f"encrypting extracted regions to: {bamFile + '.crypt'}")
@@ -573,7 +573,7 @@ def encryptRegions(bamFile, RSAkeyFile, public_key, encryptFile):
 			f = Fernet(key)
 			with open(bamFile, "rb") as bf:
 				bamData = bf.read()
-				with encryptFile as ef:
+				with cryptFile as ef:
 					ef.write(f.encrypt(bamData))
 			os.remove(bamFile)
 			if verbose:
@@ -583,10 +583,10 @@ def encryptRegions(bamFile, RSAkeyFile, public_key, encryptFile):
 	return
 
 # decrypt bamFile selected short read regions with RSA-protected symmetric key
-def decryptRegions(bamFile, RSAkeyFile, private_key, encryptFile):
+def decryptRegions(bamFile, RSAkeyFile, private_key, cryptFile):
 	if private_key == None:
-		printlog("--decrypt (-d) option requires RSA private key --password to be supplied.")
-		printlog("program exiting.")
+		printlog("error: --decrypt (-d) option requires RSA private key --password "
+						"to be supplied.")
 		quit()
 	if bamFile != None:
 		if verbose:
@@ -602,7 +602,7 @@ def decryptRegions(bamFile, RSAkeyFile, private_key, encryptFile):
 			if verbose:
 				printlog(f"           Fernet symmetric key: {key}")
 			f = Fernet(key)
-			with encryptFile as ef:
+			with cryptFile as ef:
 				cryptBamData = ef.read()
 				with open(bamFile, "wb") as bf:
 					bf.write(f.decrypt(cryptBamData))
@@ -613,7 +613,7 @@ def decryptRegions(bamFile, RSAkeyFile, private_key, encryptFile):
 	return
 
 # encrypt bamFile selected short read regions with symmetric key
-def encryptRegionsFernet(bamFile, FernetKeyFile, encryptFile):
+def encryptRegionsFernet(bamFile, FernetKeyFile, cryptFile):
 	if bamFile != None:
 		if verbose:
 			printlog(f"encrypting extracted regions to: {bamFile + '.symcrypt'}")
@@ -625,7 +625,7 @@ def encryptRegionsFernet(bamFile, FernetKeyFile, encryptFile):
 			f = Fernet(key)
 			with open(bamFile, "rb") as bf:
 				bamData = bf.read()
-				with encryptFile as ef:
+				with cryptFile as ef:
 					ef.write(f.encrypt(bamData))
 			os.remove(bamFile)
 			if verbose:
@@ -634,7 +634,7 @@ def encryptRegionsFernet(bamFile, FernetKeyFile, encryptFile):
 	return
 
 # decrypt bamFile selected short read regions with symmetric key
-def decryptRegionsFernet(bamFile, FernetKeyFile, encryptFile):
+def decryptRegionsFernet(bamFile, FernetKeyFile, cryptFile):
 	if bamFile != None:
 		if verbose:
 			printlog(f"    decrypting from: {bamFile + '.symcrypt'}")
@@ -645,13 +645,110 @@ def decryptRegionsFernet(bamFile, FernetKeyFile, encryptFile):
 			if verbose:
 				printlog(f"Fernet symmetric key: {key}")
 			f = Fernet(key)
-			with encryptFile as ef:
+			with cryptFile as ef:
 				bamData = ef.read()
 				with open(bamFile, "wb") as bf:
 					bf.write(f.decrypt(bamData))
 		if verbose:
 			printlog(f"{bamFile + '.symcrypt'} extracted short reads decrypted to {bamFile}")
 			printlog(f"  with symmetric key in {bamFile + '.symkey'}")
+	return
+
+# encrypt inputfile with RSA-protected symmetric key using public key
+def encryptFile(inputfile, RSAkeyFile, public_key, cryptFile):
+	if inputfile != None:
+		if verbose:
+			printlog(f"encrypting {inputfile} to: {inputfile + '.crypt'}")
+			printlog(f"  with RSA-protected key in: {inputfile + '.key'}")
+		with RSAkeyFile as ek:
+			key = Fernet.generate_key()
+			ciphertext = public_key.encrypt(key,
+											padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+											algorithm=hashes.SHA256(),
+											label=None))
+			ek.write(ciphertext)
+			f = Fernet(key)
+			with open(inputfile, "rb") as inf:
+				fileData = inf.read()
+				with cryptFile as ef:
+					ef.write(f.encrypt(fileData))
+			os.remove(inputfile)
+			if verbose:
+				printlog(f"{inputfile} encrypted to {inputfile + '.crypt'} then deleted")
+				printlog("  with unique symmetric key protected by RSA public key in "
+								f"{inputfile + '.key'}")
+	return
+
+# decrypt inputfile with RSA-protected symmetric key
+def decryptFile(outputfile, RSAkeyFile, private_key, cryptFile):
+	if private_key == None:
+		printlog("error: --decrypt (-d) option requires RSA private key --password "
+						"to be supplied.")
+		quit()
+	if outputfile != None:
+		if verbose:
+			printlog(f"             decrypting to: {outputfile} from {outputfile + '.crypt'}")
+			printlog(f"using RSA-protected key in: {outputfile + '.key'}")
+		with RSAkeyFile as ek:
+			ciphertext = ek.read(512)
+			key = private_key.decrypt(
+											ciphertext,
+											padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
+											algorithm=hashes.SHA256(),
+											label=None))
+			if verbose:
+				printlog(f"           Fernet symmetric key: {key}")
+			f = Fernet(key)
+			with cryptFile as ef:
+				cryptData = ef.read()
+				with open(outputfile, "wb") as outf:
+					outf.write(f.decrypt(cryptData))
+			if verbose:
+				printlog(f"{outputfile} decrypted from {outputfile + '.crypt'}")
+				printlog("  with unique symmetric key protected by RSA public key in "
+								f"{outputfile + '.key'}")
+	return
+
+# encrypt inputfile with symmetric key
+def encryptFileFernet(inputfile, FernetKeyFile, cryptFile):
+	if inputfile != None:
+		if verbose:
+			printlog(f"encrypting {inputfile} to: {inputfile + '.symcrypt'}")
+			printlog(f"  with symmetric key in: {inputfile + '.symkey'}")
+		with FernetKeyFile as fkf:
+			key = Fernet.generate_key()
+			fkf.write(key)
+			fkf.write(b"\n")
+			f = Fernet(key)
+			with open(inputfile, "rb") as inf:
+				fileData = inf.read()
+				with cryptFile as ef:
+					ef.write(f.encrypt(fileData))
+			os.remove(inputfile)
+			if verbose:
+				printlog(f"{inputfile} encrypted to {inputfile + '.symcrypt'} then deleted")
+				printlog(f"  with symmetric key in {inputfile + '.symkey'}")
+	return
+
+# decrypt bamFile selected short read regions with symmetric key
+def decryptFileFernet(outputfile, FernetKeyFile, cryptFile):
+	if outputfile != None:
+		if verbose:
+			printlog(f"    decrypting from: {outputfile + '.symcrypt'}")
+			printlog(f"using symmetric key: {outputfile + '.symkey'}")
+			printlog(f"      decrypting to: {outputfile}")
+		with FernetKeyFile as fkf:
+			key = (fkf.readline())[:-1]
+			if verbose:
+				printlog(f"Fernet symmetric key: {key}")
+			f = Fernet(key)
+			with cryptFile as ef:
+				cryptedData = ef.read()
+				with open(outputfile, "wb") as bf:
+					bf.write(f.decrypt(cryptedData))
+		if verbose:
+			printlog(f"{outputfile + '.symcrypt'} decrypted to {outputfile}")
+			printlog(f"  with symmetric key in {outputfile + '.symkey'}")
 	return
 
 #
@@ -742,29 +839,29 @@ def main():
 	if decrypt and encrypt:
 		printlog("error: cannot use --decrypt and --encrypt options on the same command line")
 		quit()
-	encryptFilePath = args['file']  # None if not set
-	if encryptFilePath != None:
-		encryptFilePath = encryptFilePath.strip("'")
+	cryptFilePath = args['file']  # None if not set
+	if cryptFilePath != None:
+		cryptFilePath = cryptFilePath.strip("'")
 		if keyPath != None or genKeyPath != None:  # use RSA public keys
 			if encrypt:  # symmetric encryption using public key to protect the key
-				encryptFile = open(encryptFilePath + ".vcf.crypt", "wb") # write bytes
-				RSAkeyFile = open(encryptFilePath + ".vcf.key", "wb")  # write bytes
+				cryptFile = open(cryptFilePath + ".vcf.crypt", "wb") # write bytes
+				RSAkeyFile = open(cryptFilePath + ".vcf.key", "wb")  # write bytes
 			elif decrypt:  # decrypt using private key to get symmetric decryption key
-				encryptFile = open(encryptFilePath + ".vcf.crypt", "rb") # read bytes
-				RSAkeyFile = open(encryptFilePath + ".vcf.key", "rb")  # read bytes
-				vcfOutfile = open(encryptFilePath + ".vcf", "wb")  # write decrypted bytes
+				cryptFile = open(cryptFilePath + ".vcf.crypt", "rb") # read bytes
+				RSAkeyFile = open(cryptFilePath + ".vcf.key", "rb")  # read bytes
+				vcfOutfile = open(cryptFilePath + ".vcf", "wb")  # write decrypted bytes
 			else:
 				printlog("error: --file (-f) option requires either --decrypt (-d) "
 								"or --encrypt (-e)")
 				quit()
 		else:  # perform symmetric per-SNP encryption using Fernet
 			if encrypt:
-				encryptFile = open(encryptFilePath + ".vcf.SNPcrypt", "wb") # write byte
-				encryptKeys = open(encryptFilePath + ".vcf.SNPkeys", "wb")  # write byte
+				cryptFile = open(cryptFilePath + ".vcf.SNPcrypt", "wb") # write byte
+				encryptKeys = open(cryptFilePath + ".vcf.SNPkeys", "wb")  # write byte
 			elif decrypt:
-				encryptFile = open(encryptFilePath + ".vcf.SNPcrypt", "rb") # read bytes
-				encryptKeys = open(encryptFilePath + ".vcf.SNPkeys", "rb")  # read bytes
-				vcfOutfile = open(encryptFilePath + ".vcf", "wb")  # write decrypted bytes
+				cryptFile = open(cryptFilePath + ".vcf.SNPcrypt", "rb") # read bytes
+				encryptKeys = open(cryptFilePath + ".vcf.SNPkeys", "rb")  # read bytes
+				vcfOutfile = open(cryptFilePath + ".vcf", "wb")  # write decrypted bytes
 			else:
 				printlog("error: --file (-f) option requires either --decrypt (-d) "
 								"or --encrypt (-e)")
@@ -822,19 +919,19 @@ def main():
 			if verbose:
 				printlog(f"VCF file '{inputfile}' header:")
 			print(vcfInfile.header)
-		if encryptFilePath != None:  # encrypt or decrypt selected SNPs
+		if cryptFilePath != None:  # encrypt or decrypt selected SNPs
 			if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
 				if encrypt:
-					SNPcount = encryptSNPs(encryptFilePath, RSAkeyFile, public_key, encryptFile,
+					SNPcount = encryptSNPs(cryptFilePath, RSAkeyFile, public_key, cryptFile,
 																posTuple, vcfInfile)
 				elif decrypt:
-					SNPcount = decryptSNPs(encryptFilePath, RSAkeyFile, private_key, encryptFile,
+					SNPcount = decryptSNPs(cryptFilePath, RSAkeyFile, private_key, cryptFile,
 																vcfOutfile)
 			elif encrypt:  # symmetric encryption using Fernet
-				SNPcount = encryptFernet(encryptFilePath, encryptFile, encryptKeys, posTuple,
+				SNPcount = encryptFernet(cryptFilePath, cryptFile, encryptKeys, posTuple,
 																vcfInfile)
 			elif decrypt:  # symmetric decryption using Fernet
-				SNPcount = decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile)
+				SNPcount = decryptFernet(cryptFilePath, cryptFile, encryptKeys, vcfOutfile)
 		elif removeFilePath != None:
 			SNPcopyCount, SNPcount = removeSNPs(removeFilePath, posTuple, vcfInfile)
 		else:  # print plaintext SNPs
@@ -879,12 +976,12 @@ def main():
 	elif infiletype == ".bam" and decrypt:
 		if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
 			RSAkeyFile = open(inputfile + ".key", "rb")  # read bytes
-			encryptFile = open(inputfile + ".crypt", "rb")  # read bytes
-			decryptRegions(inputfile, RSAkeyFile, private_key, encryptFile)
+			cryptFile = open(inputfile + ".crypt", "rb")  # read bytes
+			decryptRegions(inputfile, RSAkeyFile, private_key, cryptFile)
 		else:  # symmetric decryption using Fernet without RSA-protected symmetric key
 			FernetKeyFile = open(inputfile + ".symkey", "rb")  # read bytes
-			encryptFile = open(inputfile + ".symcrypt", "rb")  # read bytes
-			decryptRegionsFernet(inputfile, FernetKeyFile, encryptFile)
+			cryptFile = open(inputfile + ".symcrypt", "rb")  # read bytes
+			decryptRegionsFernet(inputfile, FernetKeyFile, cryptFile)
 
 	elif infiletype == ".bam":
 		writemode = None
@@ -913,12 +1010,12 @@ def main():
 					if encrypt:
 						if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
 							RSAkeyFile = open(outfile + ".key", "wb")  # write bytes
-							encryptFile = open(outfile + ".crypt", "wb")  # write bytes
-							encryptRegions(outfile, RSAkeyFile, public_key, encryptFile)
+							cryptFile = open(outfile + ".crypt", "wb")  # write bytes
+							encryptRegions(outfile, RSAkeyFile, public_key, cryptFile)
 						else:  # symmetric encryption using Fernet
 							FernetKeyFile = open(outfile + ".symkey", "wb")  # write bytes
-							encryptFile = open(outfile + ".symcrypt", "wb")  # write bytes
-							encryptRegionsFernet(outfile, FernetKeyFile, encryptFile)
+							cryptFile = open(outfile + ".symcrypt", "wb")  # write bytes
+							encryptRegionsFernet(outfile, FernetKeyFile, cryptFile)
 				else:
 					if verbose:
 						printlog(f"extracting unmasked region: {regionTuple} from {inputfile}",
@@ -958,6 +1055,27 @@ def main():
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
 			printlog("program exiting.")
+
+	elif encrypt:  # encrypt all other file types when requested
+		if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
+			RSAkeyFile = open(inputfile + ".key", "wb")  # write bytes
+			cryptFile = open(inputfile + ".crypt", "wb")  # write bytes
+			encryptFile(inputfile, RSAkeyFile, public_key, cryptFile)
+		else:  # symmetric encryption using Fernet
+			FernetKeyFile = open(inputfile + ".symkey", "wb")  # write bytes
+			cryptFile = open(inputfile + ".symcrypt", "wb")  # write bytes
+			encryptFileFernet(inputfile, FernetKeyFile, cryptFile)
+
+	elif decrypt:  # decrypt all other file types when requested
+		if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
+			RSAkeyFile = open(inputfile + ".key", "rb")  # read bytes
+			cryptFile = open(inputfile + ".crypt", "rb")  # read bytes
+			decryptFile(inputfile, RSAkeyFile, private_key, cryptFile)
+		else:  # symmetric decryption using Fernet without RSA-protected symmetric key
+			FernetKeyFile = open(inputfile + ".symkey", "rb")  # read bytes
+			cryptFile = open(inputfile + ".symcrypt", "rb")  # read bytes
+			decryptFileFernet(inputfile, FernetKeyFile, cryptFile)
+
 	else:
 		printlog(f"[file: '{inputfile}'] unrecognized file type.")
 		printlog("program exiting.")
