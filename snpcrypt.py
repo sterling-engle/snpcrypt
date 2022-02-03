@@ -612,6 +612,48 @@ def decryptRegions(bamFile, RSAkeyFile, private_key, encryptFile):
 								f"{bamFile + '.key'}")
 	return
 
+# encrypt bamFile selected short read regions with symmetric key
+def encryptRegionsFernet(bamFile, FernetKeyFile, encryptFile):
+	if bamFile != None:
+		if verbose:
+			printlog(f"encrypting extracted regions to: {bamFile + '.symcrypt'}")
+			printlog(f"          with symmetric key in: {bamFile + '.symkey'}")
+		with FernetKeyFile as fkf:
+			key = Fernet.generate_key()
+			fkf.write(key)
+			fkf.write(b"\n")
+			f = Fernet(key)
+			with open(bamFile, "rb") as bf:
+				bamData = bf.read()
+				with encryptFile as ef:
+					ef.write(f.encrypt(bamData))
+			os.remove(bamFile)
+			if verbose:
+				printlog(f"{bamFile} extracted short reads encrypted to {bamFile + '.symcrypt'}")
+				printlog(f"  with symmetric key in {bamFile + '.symkey'}")
+	return
+
+# decrypt bamFile selected short read regions with symmetric key
+def decryptRegionsFernet(bamFile, FernetKeyFile, encryptFile):
+	if bamFile != None:
+		if verbose:
+			printlog(f"    decrypting from: {bamFile + '.symcrypt'}")
+			printlog(f"using symmetric key: {bamFile + '.symkey'}")
+			printlog(f"      decrypting to: {bamFile}")
+		with FernetKeyFile as fkf:
+			key = (fkf.readline())[:-1]
+			if verbose:
+				printlog(f"Fernet symmetric key: {key}")
+			f = Fernet(key)
+			with encryptFile as ef:
+				bamData = ef.read()
+				with open(bamFile, "wb") as bf:
+					bf.write(f.decrypt(bamData))
+		if verbose:
+			printlog(f"{bamFile + '.symcrypt'} extracted short reads decrypted to {bamFile}")
+			printlog(f"  with symmetric key in {bamFile + '.symkey'}")
+	return
+
 #
 # initialize and parse the command line arguments
 #
@@ -840,9 +882,9 @@ def main():
 			encryptFile = open(inputfile + ".crypt", "rb")  # read bytes
 			decryptRegions(inputfile, RSAkeyFile, private_key, encryptFile)
 		else:  # symmetric decryption using Fernet without RSA-protected symmetric key
-			#	SNPcount = decryptFernet(encryptFilePath, encryptFile, encryptKeys, vcfOutfile)
-			printlog("Fernet without RSA decryption not implemented yet.")
-			quit()
+			FernetKeyFile = open(inputfile + ".symkey", "rb")  # read bytes
+			encryptFile = open(inputfile + ".symcrypt", "rb")  # read bytes
+			decryptRegionsFernet(inputfile, FernetKeyFile, encryptFile)
 
 	elif infiletype == ".bam":
 		writemode = None
@@ -874,10 +916,9 @@ def main():
 							encryptFile = open(outfile + ".crypt", "wb")  # write bytes
 							encryptRegions(outfile, RSAkeyFile, public_key, encryptFile)
 						else:  # symmetric encryption using Fernet
-							# SNPcount = encryptRegionsFernet(outfile, encryptFile, encryptKeys)
-							# SNPcount = encryptRegionsFernet(outfile, encryptFile)
-							printlog("Fernet without RSA encryption not implemented yet.")
-							quit()
+							FernetKeyFile = open(outfile + ".symkey", "wb")  # write bytes
+							encryptFile = open(outfile + ".symcrypt", "wb")  # write bytes
+							encryptRegionsFernet(outfile, FernetKeyFile, encryptFile)
 				else:
 					if verbose:
 						printlog(f"extracting unmasked region: {regionTuple} from {inputfile}",
