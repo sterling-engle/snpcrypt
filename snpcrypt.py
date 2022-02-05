@@ -218,8 +218,7 @@ def readPrivatePublicKeys(privateFile, publicFile, password):
 				private_key = serialization.load_pem_private_key(key_file.read(),
 																												password=password)
 			except (ValueError) as e:
-				printlog(f"RSA private key file {privateFile} password '{password}': {e}")
-				printlog("program exiting.")
+				printlog(f"error: RSA private key file {privateFile} password '{password}': {e}")
 				quit()
 		if verbose:
 			printlog(f"        RSA private key object: {private_key}")
@@ -912,8 +911,7 @@ def main():
 		try:
 			vcfInfile = VariantFile(inputfile, mode='r', threads=4)
 		except (FileNotFoundError, ValueError) as e:
-			printlog(f"[VariantFile({inputfile})] error ignored: {e}.")
-			printlog("program exiting.")
+			printlog(f"error: [VariantFile({inputfile})]: {e}.")
 			quit()
 		if args['header']:
 			if verbose:
@@ -1026,8 +1024,7 @@ def main():
 							print(str(x))
 
 		except (FileNotFoundError, ValueError) as e:
-			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
-			printlog("program exiting.")
+			printlog(f"error: [AlignmentFile({inputfile})]: {e}.")
 	elif infiletype == ".sam":
 		try:
 			samInfile = AlignmentFile(inputfile, mode='r', check_sq=False, threads=4)
@@ -1040,8 +1037,7 @@ def main():
 				print(str(x))
 
 		except (FileNotFoundError, ValueError) as e:
-			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
-			printlog("program exiting.")
+			printlog(f"error: [AlignmentFile({inputfile})] error ignored: {e}.")
 	elif infiletype == ".cram":
 		try:
 			cramInfile = AlignmentFile(inputfile, mode='rc', threads=4)
@@ -1053,8 +1049,7 @@ def main():
 			for x in cramIter:
 				print(str(x))
 		except (FileNotFoundError, ValueError) as e:
-			printlog(f"[AlignmentFile({inputfile})] error ignored: {e}.")
-			printlog("program exiting.")
+			printlog(f"error: [AlignmentFile({inputfile})]: {e}.")
 
 	elif encrypt:  # encrypt all other file types when requested
 		if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
@@ -1077,8 +1072,7 @@ def main():
 			decryptFileFernet(inputfile, FernetKeyFile, cryptFile)
 
 	else:
-		printlog(f"[file: '{inputfile}'] unrecognized file type.")
-		printlog("program exiting.")
+		printlog(f"error: [file: '{inputfile}'] unrecognized file type.")
 
 if __name__ == "__main__":
 	main()
