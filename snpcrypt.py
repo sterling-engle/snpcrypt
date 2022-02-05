@@ -33,6 +33,7 @@ optional arguments:
                         RSA private and/or public key file path [none]
   -l LOG, --log LOG     log output file path [none]
 	-m, --mask						mask BAM file short reads [false]
+  -n SNPS, --snps SNPS  number of SNPs to output [0, use -1 for all]
 	-o OUTFILE, --outfile OUTFILE
 												BAM/SAM output file [none]
   -p POS, --pos POS     base reference position comma-separated list [none]
@@ -81,6 +82,17 @@ from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric import utils
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives import hashes
+
+# accepts a variable number of arguments and prints to sys.stdout and logFile if open
+def printlogstdout(*args, sep=" ", end="\n"):
+	if sep == "tab":
+		print(*args, sep='\t', end=end)
+		if logFile is not None:
+			print(*args, file=logFile, sep='\t', end=end)
+	else:
+		print(*args, end=end)
+		if logFile is not None:
+			print(*args, file=logFile, end=end)
 
 # accepts a variable number of arguments and prints to sys.stderr and logFile if open
 def printlog(*args, sep=" "):
@@ -289,6 +301,8 @@ def encryptSNPs(cryptFilePath, RSAkeyFile, public_key, cryptFile, posTuple,
 			ek.write(ciphertext)
 			f = Fernet(key)
 			with cryptFile as ef:
+				ef.write(f.encrypt(vcfInfile.header))  # write out encrypted VCF header first
+				ef.write(b"\n")
 				for pos in posTuple:
 					for rec in vcfInfile.fetch(region = f"21:{pos}-{pos}"):
 						qual = rec.qual
@@ -348,6 +362,12 @@ def encryptFernet(cryptFilePath, cryptFile, encryptKeys, posTuple, vcfInfile):
 			printlog(f" individual SNP symmetric keys: {cryptFilePath + '.vcf.SNPkeys'}")
 		with cryptFile as ef:
 			with encryptKeys as ek:
+				key = Fernet.generate_key()
+				ek.write(key)
+				ek.write(b"\n")
+				f = Fernet(key)
+				ef.write(f.encrypt(vcfInfile.header))  # write out encrypted VCF header first
+				ef.write(b"\n")
 				for pos in posTuple:
 					for rec in vcfInfile.fetch(region = f"21:{pos}-{pos}"):
 						qual = rec.qual
@@ -779,14 +799,16 @@ def getArgs():
 									help="log output file path [none]")
 	ap.add_argument("-m", "--mask", action="store_true",
 									help="mask BAM file short reads [false]")
+	ap.add_argument("-n", "--snps", type=int, default=0,
+									help="number of SNPs to output [0, use -1 for all]")
 	ap.add_argument("-o", "--outfile", type=ascii,
 									help="BAM/SAM output file [none]")
 	ap.add_argument("-p", "--pos", type=ascii, default="",
-									help="base reference position comma-separated list [none]")
+									help="base reference position(s) comma-separated list [none]")
 	ap.add_argument("-r", "--remove", type=ascii,
 									help="remove --pos SNPs to this VCF file path [none]")
-	ap.add_argument("-s", "--snps", type=int, default=0,
-									help="number of SNPs to output [0, use -1 for all]")
+	ap.add_argument("-s", "--samples", type=ascii, default="",
+									help="VCF/BCF sample(s) comma-separated list [all]")
 	ap.add_argument("-t", "--verbose", action="store_true",
 									help="enables verbose output [false]")
 	ap.add_argument("-v", "--header", action="store_true",
@@ -797,7 +819,7 @@ def getArgs():
 									help="eXtract BAM region(s), e.g. '1:100-105,2:1234:5678' [none]")
 	ap.add_argument('inputfile', nargs='?', type=ascii,
 									default = "1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz",
-									help="BAM/SAM or SNPs VCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
+									help="BAM/SAM or SNPs VCF/BCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
 	return vars(ap.parse_args())
 
 
@@ -883,6 +905,10 @@ def main():
 	else:
 		posTuple = ()
 	ids = args['ids']
+	if args['samples'] != "''":
+		samplesTuple = tuple(args['samples'].strip("'").split(","))
+	else:
+		samplesTuple = None
 	snpLimit = args['snps']
 	if snpLimit < 0:  # output all SNPs
 		snpLimit = sys.maxsize
@@ -913,10 +939,17 @@ def main():
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"error: [VariantFile({inputfile})]: {e}.")
 			quit()
+		if samplesTuple != None:  # read only a subset of samples
+			printlog(f"    reading only these samples: {samplesTuple}")
+			try:
+				vcfInfile.subset_samples(samplesTuple)
+			except (ValueError) as e:
+				printlog(f"error: --samples: {e}.")
+				quit()
 		if args['header']:
 			if verbose:
 				printlog(f"VCF file '{inputfile}' header:")
-			print(vcfInfile.header)
+			printlogstdout(vcfInfile.header, end = "")
 		if cryptFilePath != None:  # encrypt or decrypt selected SNPs
 			if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
 				if encrypt:
@@ -940,10 +973,10 @@ def main():
 					if isinstance(qual, float):  # remove trailing zeroes
 						qual = f"{qual:.6f}".rstrip('0').rstrip('.')
 					if rec.pos == int(pos):
-						printlog (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts), qual,
-											getFilter(rec.filter), getInfo(rec.info),
-											getFormat(rec.format), getSamples(rec.samples, count, ids,
-											bases, sep=delim), sep=delim)
+						printlogstdout (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts),
+														qual, getFilter(rec.filter), getInfo(rec.info),
+														getFormat(rec.format), getSamples(rec.samples, count, ids,
+														bases, sep=delim), sep=delim)
 						SNPcount += 1
 			if verbose and SNPcount > 0:
 				printlog(f"{SNPcount} selected SNPs output in plaintext")
