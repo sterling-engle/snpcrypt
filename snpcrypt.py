@@ -164,7 +164,7 @@ def getFormat(formats):
 			formatStr += f"{format}"
 			first = False
 		else:
-			formatStr += f",{format}"
+			formatStr += f":{format}"
 	return formatStr
 
 # returns the SNP for each sample separated by spaces
@@ -179,11 +179,9 @@ def getSamples(samples, count=sys.maxsize, ids=False, bases=False, sep="tab"):
 		sep = '\t'
 	else:
 		sep = ' '
-	# sampleKeys = samples.keys()
 	cnt = 0
 	if count > 0:
 		for ss, rec in samples.items():
-			# value = list(samples.values()[0])
 			if ids:
 				value = ss + "="
 			else:
@@ -194,6 +192,21 @@ def getSamples(samples, count=sys.maxsize, ids=False, bases=False, sep="tab"):
 				value = value + str(rec.allele_indices[0]) + "|" + str(rec.allele_indices[1])
 			elif len(rec.allele_indices) == 1:
 				value = value + str(rec.allele_indices[0])
+			skip = True
+			for val in rec.itervalues():  # add any additional fields besides GT (genotype)
+				if skip:
+					skip = False
+				else:
+					if type(val) is str:
+						value = value + ":" + val
+					elif type(val) is tuple:
+						firstval = True
+						for v in val:
+							if firstval:
+								value = value + ":" + v
+								firstval = False
+							else:
+								value = value + "," + v
 
 			if first == True:
 				sampleStr += f"{value}"
