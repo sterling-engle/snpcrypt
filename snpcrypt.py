@@ -142,17 +142,47 @@ def getInfo(info):
 	infoStr = ""
 	first = True
 	infoKeys = info.keys()
+	if len(infoKeys) == 0:
+		return "."  # indicates an empty field
 	for key in infoKeys:
-		value = info[key]
-		if type(value) is tuple:
-			value = value[0]
-		if isinstance(value, float):  # remove trailing zeroes
-			value = f"{value:.9f}".rstrip('0').rstrip('.')
+		try:
+			keyvalue = info[key]
+		except (ValueError) as e:
+			printlog(f"[info['{key}']] ValueError ignored: {e}.")
+			continue
+		# printlog(f"{key}={keyvalue}; type is {type(keyvalue)}")
+		if type(keyvalue) is tuple:
+			value = ""
+			firstval = True
+			for val in keyvalue:
+				if isinstance(val, float):  # remove trailing zeroes
+					val = f"{val:.7f}".rstrip('0').rstrip('.')
+				if firstval:
+					firstval = False
+					value += f"{val}"
+				else:
+					value += f",{val}"
+		elif isinstance(keyvalue, float):  # remove trailing zeroes
+			value = f"{keyvalue:.7f}".rstrip('0').rstrip('.')
+		elif isinstance(keyvalue, bool):	# change True to "1" and False to "0"
+			if keyvalue:
+				value = "1"
+			else:
+				value = "0"
+		else:
+			value = keyvalue
+
 		if first == True:
-			infoStr += f"{key}={value}"
+			if value == None:
+				infoStr += f"{key}"
+			else:
+				infoStr += f"{key}={value}"
 			first = False
 		else:
-			infoStr += f";{key}={value}"
+			if value == None:
+				infoStr += f";{key}"
+			else:
+				infoStr += f";{key}={value}"
 	return infoStr
 
 # returns format
