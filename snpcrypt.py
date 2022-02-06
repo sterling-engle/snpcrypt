@@ -8,23 +8,28 @@ Created on Wed Nov 17 17:02:18 2021
 Developed and tested only on Windows 10 running Ubuntu 18.04.6 LTS
 under Python 3.9.7.
 
-usage: snpcrypt.py [-h] [-b] [-c COUNT] [-d DELIM] [-e] [-f FILE]
-                   [-g GENKEYPATH] [-i] [-k KEYPATH] [-l LOG] [-p POS]
-                   [-r REMOVE] [-s SNPS] [-t] [-v] [-w PASSWORD] [-x REGION]
+usage: snpcrypt.py [-h] [-b] [-c COUNT] [--delim DELIM] [-d] [-e] [-f FILE]
+                   [-g GENKEYPATH] [-i] [-k KEYPATH] [-l LOG] [-m] [-n SNPS]
+                   [-o OUTFILE] [-p POS] [-r REMOVE] [-s SAMPLES] [-t] [-v]
+                   [-w PASSWORD] [-x REGION]
                    [inputfile]
 
 positional arguments:
-  inputfile             BAM/SAM or SNPs VCF input file [1000-genomes-phase-
-												3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a
-												.20130502.genotypes.vcf.gz]
+  inputfile             BAM/SAM or SNPs VCF/BCF input file [1000-genomes-phase
+                        -3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_inte
+                        grated_v5a.20130502.genotypes.vcf.gz]
 
 optional arguments:
   -h, --help            show this help message and exit
   -b, --bases           include DNA bases with SNPs instead of indices [false]
   -c COUNT, --count COUNT
                         count of samples to output [all]
-  --delim DELIM					delimiter between fields [tab]
-  -e, --encrypt         encrypt selected SNPs to --file=path [false]
+  --delim DELIM         delimiter between fields [tab]
+  -d, --decrypt         decrypt selected SNPs to --file=path.vcf or extracted
+                        BAM regions to inputfile.bam from inputfile.bam.crypt
+                        [false]
+  -e, --encrypt         encrypt selected SNPs to --file=path.vcf.crypt or
+                        extracted BAM region to --outfile=path.crypt [false]
   -f FILE, --file FILE  encryption file [none]
   -g GENKEYPATH, --genkeypath GENKEYPATH
                         generate private and public key path [none]
@@ -32,20 +37,22 @@ optional arguments:
   -k KEYPATH, --keypath KEYPATH
                         RSA private and/or public key file path [none]
   -l LOG, --log LOG     log output file path [none]
-	-m, --mask						mask BAM file short reads [false]
+  -m, --mask            mask BAM file short reads [false]
   -n SNPS, --snps SNPS  number of SNPs to output [0, use -1 for all]
-	-o OUTFILE, --outfile OUTFILE
-												BAM/SAM output file [none]
-  -p POS, --pos POS     base reference position comma-separated list [none]
+  -o OUTFILE, --outfile OUTFILE
+                        BAM/SAM output file [none]
+  -p POS, --pos POS     base reference position(s) comma-separated list [none]
   -r REMOVE, --remove REMOVE
                         remove --pos SNPs to this VCF file path [none]
-  -s SNPS, --snps SNPS  number of SNPs to output [0, use -1 for all]
+  -s SAMPLES, --samples SAMPLES
+                        VCF/BCF sample(s) comma-separated list [all]
   -t, --verbose         enables verbose output [false]
   -v, --header          output BAM/SAM/VCF header [false]
   -w PASSWORD, --password PASSWORD
                         encrypted private key password [none]
   -x REGION, --region REGION
-                        eXtract BAM region(s), e.g. '1:100-105,2:1234:5678' [none]
+                        eXtract BAM region(s), e.g. '1:100-105,2:1234:5678'
+                        [none]
 
 CHROM  POS ID  REF ALT QUAL  FILTER  INFO  FORMAT
 ['alleles',
@@ -301,7 +308,7 @@ def encryptSNPs(cryptFilePath, RSAkeyFile, public_key, cryptFile, posTuple,
 			ek.write(ciphertext)
 			f = Fernet(key)
 			with cryptFile as ef:
-				ef.write(f.encrypt(vcfInfile.header))  # write out encrypted VCF header first
+				ef.write(f.encrypt(bytes(str(vcfInfile.header), "ascii")))  # encrypted VCF header
 				ef.write(b"\n")
 				for pos in posTuple:
 					for rec in vcfInfile.fetch(region = f"21:{pos}-{pos}"):
@@ -323,7 +330,7 @@ def encryptSNPs(cryptFilePath, RSAkeyFile, public_key, cryptFile, posTuple,
 	return SNPcount
 
 def decryptSNPs(cryptFilePath, RSAkeyFile, private_key, cryptFile, vcfOutfile):
-	SNPcount = 0
+	SNPcount = -1  # do not count the header
 	if cryptFilePath != None:  # decrypt selected SNPs with RSA-protected symmetric key
 		if verbose:
 			printlog(f" decrypting selected SNPs from: {cryptFilePath + '.vcf.crypt'}")
@@ -347,7 +354,8 @@ def decryptSNPs(cryptFilePath, RSAkeyFile, private_key, cryptFile, vcfOutfile):
 							break
 						cryptLine = cryptLine[:-1]
 						vcf.write(f.decrypt(cryptLine))
-						vcf.write(b"\n")
+						if SNPcount != -1:  # header already has a newline at the end
+							vcf.write(b"\n")
 						SNPcount += 1
 		if verbose:
 			printlog(f"{SNPcount} selected SNPs decrypted with unique symmetric "
@@ -366,7 +374,7 @@ def encryptFernet(cryptFilePath, cryptFile, encryptKeys, posTuple, vcfInfile):
 				ek.write(key)
 				ek.write(b"\n")
 				f = Fernet(key)
-				ef.write(f.encrypt(vcfInfile.header))  # write out encrypted VCF header first
+				ef.write(f.encrypt(bytes(str(vcfInfile.header), "ascii")))  # encrypted VCF header
 				ef.write(b"\n")
 				for pos in posTuple:
 					for rec in vcfInfile.fetch(region = f"21:{pos}-{pos}"):
@@ -391,8 +399,8 @@ def encryptFernet(cryptFilePath, cryptFile, encryptKeys, posTuple, vcfInfile):
 	return SNPcount
 
 def decryptFernet(cryptFilePath, cryptFile, encryptKeys, vcfOutfile):
-	SNPcount = 0
-	if cryptFilePath != None:  # encrypt selected SNPs using Fernet
+	SNPcount = -1  # do not count the header
+	if cryptFilePath != None:  # encrypt selected SNPs using Fernet without RSA
 		if verbose:
 			printlog(f"               decrypting from: {cryptFilePath + '.vcf.SNPcrypt'}")
 			printlog(f" individual SNP symmetric keys: {cryptFilePath + '.vcf.SNPkeys'}")
@@ -410,7 +418,8 @@ def decryptFernet(cryptFilePath, cryptFile, encryptKeys, vcfOutfile):
 							printlog(f"Fernet symmetric key: {key}")
 						f = Fernet(key)
 						vcf.write(f.decrypt(cryptLine))
-						vcf.write(b"\n")
+						if SNPcount != -1:  # header already has a newline at the end
+							vcf.write(b"\n")
 						SNPcount += 1
 		if verbose:
 			printlog(f"{SNPcount} SNPs decrypted using individual symmetric keys")
