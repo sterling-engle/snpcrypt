@@ -899,14 +899,42 @@ def main():
 	if count == -1:
 		count = sys.maxsize
 	delim = args['delim'].strip("'")
-	password=args['password']  # None if not set
-	if password != None:
-		password = bytes(password.strip("'"), "ascii")
 	region = args['region']  # BAM/SAM file region to extract, if any, else None
 	if region != None:
 		regionTuple = tuple(region.strip("'").split(","))
+	# support a list of RSA keypaths and passwords for generation and
+	# loading public and/or private keys
+	password=args['password']  # None if not set
 	genKeyPath = args['genkeypath']  # None if not set
+	if genKeyPath != None:
+		if password == None:
+			printlog("error: -g/--genkeypath argument also requires -w/--password argument")
+			quit()
+		genKeyTuple = tuple(genKeyPath.strip("'").split(","))
 	keyPath = args['keypath']  # None if not set
+	if keyPath != None:
+		if genKeyPath != None:
+			printlog("error: only one of -g/--genkeypath or -k/--keypath arguments "
+							"may be given at a time")
+			quit()
+		keyTuple = tuple(keyPath.strip("'").split(","))
+	if password != None:
+		passwordList = list(password.strip("'").split(","))
+		for i in range(0, len(passwordList)):
+			passwordList[i] = bytes(passwordList[i], "ascii")
+		passwordTuple = tuple(passwordList)
+		if genKeyPath != None and len(genKeyTuple) != len(passwordTuple):
+			printlog("error: -g/--genkeypath and -w/--password list size are not the same:")
+			printlog(f"       genkeypath(s): {genKeyTuple} and password(s): {passwordTuple}")
+			quit()
+		elif keyPath != None and len(keyTuple) != len(passwordTuple):
+			printlog("error: -k/--keypath and -w/--password list size are not the same:")
+			printlog(f"       keypath(s): {keyTuple} and password(s): {passwordTuple}")
+			quit()
+		elif genKeyPath == None and keyPath == None:
+			printlog("error: -w/--password argument also requires either -k/--keypath "
+							"or -g/--genkeypath")
+			quit()
 	decrypt = args['decrypt']  # default: False
 	encrypt = args['encrypt']  # default: False
 	if decrypt and encrypt:
@@ -965,25 +993,35 @@ def main():
 	if snpLimit < 0:  # output all SNPs
 		snpLimit = sys.maxsize
 
-	private_key = None
-	public_key = None
+	private_key = list()
+	public_key = list()
 
 	if keyPath != None:  # read private and/or public RSA keys from files
-		keyPath = keyPath.strip("'")
-		keyPrivateFile = keyPath + ".key.private"
-		keyPublicFile = keyPath + ".key.public"
-		private_key, public_key = readPrivatePublicKeys(keyPrivateFile,
-																										keyPublicFile,
-																										password)
+		for i in range(len(keyTuple)):
+			keyPrivateFile = keyTuple[i] + ".key.private"
+			keyPublicFile = keyTuple[i] + ".key.public"
+			if "passwordTuple" in locals():
+				priv_key, pub_key = readPrivatePublicKeys(keyPrivateFile,
+																									keyPublicFile,
+																									passwordTuple[i])
+			else:
+				priv_key, pub_key = readPrivatePublicKeys(keyPrivateFile,
+																									keyPublicFile,
+																									None)
+			private_key.append(priv_key)  # None if not retrieved
+			public_key.append(pub_key)  # None if not retrieved
 
-	# newly-generated keys are used when --keypath is also given
+	# newly-generated keys are used when -g/--genkeypath is given
 	if genKeyPath != None:  # generate private and public RSA key pair
-		genKeyPath = genKeyPath.strip("'")
-		genKeyPrivateFile = genKeyPath + ".key.private"
-		genKeyPublicFile = genKeyPath + ".key.public"
-		private_key, public_key = genPrivatePublicKeys(genKeyPrivateFile,
-																									 genKeyPublicFile,
-																									 password)
+		for i in range(len(genKeyTuple)):
+			genKeyPrivateFile = genKeyTuple[i] + ".key.private"
+			genKeyPublicFile = genKeyTuple[i] + ".key.public"
+			priv_key, pub_key = genPrivatePublicKeys(genKeyPrivateFile,
+																							 genKeyPublicFile,
+																							 passwordTuple[i])
+			private_key.append(priv_key)  # None if not generated
+			public_key.append(pub_key)  # None if not generated
+
 	# ".gz" is .vcf.gz compressed VCF file
 	if infiletype == ".vcf" or infiletype == ".gz" or infiletype == ".bcf":
 		try:
