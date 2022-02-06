@@ -239,7 +239,7 @@ def readPrivatePublicKeys(privateFile, publicFile, password):
 			except (ValueError) as e:
 				printlog(f"error: RSA private key file {privateFile} password '{password}': {e}")
 				quit()
-		if verbose:
+		if verbose and trace:
 			printlog(f"        RSA private key object: {private_key}")
 
 	public_key = None
@@ -248,7 +248,7 @@ def readPrivatePublicKeys(privateFile, publicFile, password):
 			printlog(f"   reading RSA public key from: {publicFile}")
 		with open(publicFile, "rb") as key_file:
 			public_key = serialization.load_pem_public_key(key_file.read())
-		if verbose:
+		if verbose and trace:
 			printlog(f"         RSA public key object: {public_key}")
 	return private_key, public_key
 
@@ -343,7 +343,7 @@ def decryptSNPs(cryptFilePath, RSAkeyFile, private_key, cryptFile, vcfOutfile):
 											padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
 											algorithm=hashes.SHA256(),
 											label=None))
-			if verbose:
+			if verbose and trace:
 				printlog(f"          Fernet symmetric key: {key}")
 			f = Fernet(key)
 			with cryptFile as ef:
@@ -414,7 +414,7 @@ def decryptFernet(cryptFilePath, cryptFile, encryptKeys, vcfOutfile):
 						  break
 						cryptLine = cryptLine[:-1]
 						key = (ek.readline())[:-1]
-						if verbose:
+						if verbose and trace:
 							printlog(f"Fernet symmetric key: {key}")
 						f = Fernet(key)
 						vcf.write(f.decrypt(cryptLine))
@@ -998,9 +998,10 @@ def main():
 						qual = rec.qual
 						if isinstance(qual, float):  # remove trailing zeroes
 							qual = f"{qual:.6f}".rstrip('0').rstrip('.')
-						printlog (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts), qual,
-											getFilter(rec.filter), getInfo(rec.info), getFormat(rec.format),
-											getSamples(rec.samples, count, ids, bases))
+						printlogstdout (rec.chrom, rec.pos, rec.id, rec.ref, getAlts(rec.alts),
+														qual, getFilter(rec.filter), getInfo(rec.info),
+														getFormat(rec.format), getSamples(rec.samples, count, ids,
+														bases, sep=delim), sep=delim)
 						SNPcount += 1
 						if SNPcount >= snpLimit:
 							if verbose:
