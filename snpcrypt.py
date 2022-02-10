@@ -1,12 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Nov 17 17:02:18 2021
-
 @author: Sterling Engle
 @uid: 904341227
 
-Developed and tested only on Windows 10 running Ubuntu 18.04.6 LTS
-under Python 3.9.7.
+Developed and tested only on Ubuntu 18.04.6 LTS under Python 3.9.7.
 
 usage: snpcrypt.py [-h] [-b] [-c COUNT] [--delim DELIM] [-d] [-e] [-f FILE]
                    [-g GENKEYPATH] [-i] [-k KEYPATH] [-l LOG] [-m] [-n SNPS]
@@ -15,7 +12,7 @@ usage: snpcrypt.py [-h] [-b] [-c COUNT] [--delim DELIM] [-d] [-e] [-f FILE]
                    [inputfile]
 
 positional arguments:
-  inputfile             BAM/SAM or SNPs VCF/BCF input file [1000-genomes-phase
+  inputfile             BAM/SAM, SNPs VCF/BCF, or other input file [1000-genomes-phase
                         -3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_inte
                         grated_v5a.20130502.genotypes.vcf.gz]
 
@@ -888,9 +885,8 @@ def getArgs():
 									help="eXtract BAM region(s), e.g. '1:100-105,2:1234:5678' [none]")
 	ap.add_argument('inputfile', nargs='?', type=ascii,
 									default = "1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz",
-									help="BAM/SAM or SNPs VCF/BCF input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
+									help="BAM/SAM, SNPs VCF/BCF, or other input file [1000-genomes-phase-3_vcf-20150220_ALL.chr21.phase3_shapeit2_mvncall_integrated_v5a.20130502.genotypes.vcf.gz]")
 	return vars(ap.parse_args())
-
 
 def main():
 	global logFile  # output file for printlog(s) [default: None]
