@@ -537,7 +537,7 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 		if mask:  # mask short reads?
 			if verbose:
 				printlog("masking short reads with N's")
-			samline = []
+			samline = []  # list of BAM file input lines in SAM format: one per base in region
 			queryNames = []
 			readsList = []
 			refNames = []
@@ -547,25 +547,28 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 			qualScores = []
 			sequences = []
 			for reg in regionTuple:
+				# perform pileup within the region
 				bamIter = bamInfile.pileup(region = reg, truncate = True)
 				for x in bamIter:  # x is of type pysam.PileupColumn
-					queryNames.append(x.get_query_names())
-					queryPos.append(x.get_query_positions())
-					sequences.append(x.get_query_sequences())
+					queryNames.append(x.get_query_names())  # list of query names in region
+					queryPos.append(x.get_query_positions())  # list of sequence positions in region
+					sequences.append(x.get_query_sequences())  # list of sequences in the region
 					if verbose and trace:
 						readsList.append(x.nsegments)
 						refNames.append(x.reference_name)
 						refPos.append(x.reference_pos + 1)  # note + 1
 						numAlignedBases.append(x.get_num_aligned())
 						qualScores.append(x.get_mapping_qualities())
-					for p in x.pileups:
+					for p in x.pileups:  # list of reads (pysam.PileupRead) aligned to this column
+						# p.alignment is a pysam.AlignedSegment object of the aligned read
+						# to_string() is a string representation of aligned segment in valid SAM format
 						samline.append(p.alignment.to_string())
-			samlines = list(dict.fromkeys(samline))
+			samlines = list(dict.fromkeys(samline))  # removes duplicate SAM lines
 			samitems = []
 			for s in samlines:
 				if verbose and trace:
 					printlog(s)
-				samitems.append(s.split('\t'))
+				samitems.append(s.split('\t'))  # create a list of the SAM fields
 			if verbose and trace:
 				for s in samitems:
 					printlog(s)
@@ -575,21 +578,24 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 				printlog(f"reference position: {refPos}")
 				printlog(f"number of aligned bases: {numAlignedBases}")
 				printlog(f"positions in read: {queryPos}")
-				printlog(f"quality scores: {qualScores}")
+				# printlog(f"quality scores: {qualScores}")
 				printlog(f"query sequences: {sequences}")
-			for s in range(len(samitems)):  # replace sequence with N's to mask it
+			for s in range(len(samitems)):  # replace sequence with N's to mask all bases
 				samitems[s][9] = "N" * len(samitems[s][9])
-			for q in range(len(queryNames)):
-				for i in range(len(queryNames[q])):
-					for s in range(len(samitems)):
-						if samitems[s][0] == queryNames[q][i]:
+			for q in range(len(queryNames)):  # for each query name
+				for i in range(len(queryNames[q])):  # for each matched sequence in that query
+					for s in range(len(samitems)):  # look for matching query name
+						if samitems[s][0] == queryNames[q][i]:  # does this line contain the query?
 							# first index is 0-based position
-							samitems[s][9] = samitems[s][9][:queryPos[q][i]] + sequences[q][i].upper()  + samitems[s][9][queryPos[q][i] + 1:]
+							# before matched base + matched base + after matched base
+							samitems[s][9] = samitems[s][9][:queryPos[q][i]] + \
+																sequences[q][i].upper() + \
+																samitems[s][9][queryPos[q][i] + 1:]  # insert matched base
 			if verbose and trace:
 				for s in range(len(samitems)):
 					printlog(samitems[s])
 			for s in samitems:
-				a = pysam.AlignedSegment()
+				a = pysam.AlignedSegment()  # get empty aligned segment for writing masked result
 				# could use fromstring(type cls, sam, AlignmentHeader header)
 				a.query_name = s[0]
 				a.flag = int(s[1])
@@ -602,18 +608,18 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 				a.template_length = int(s[8])
 				a.query_sequence = s[9]
 				a.query_qualities = pysam.qualitystring_to_array(s[10])
-				tags = []
+				tags = []  # for storing optional fields
 				for t in range(11, len(s)):
-					tagpieces = s[t].split(":")
-					tagtype = tagpieces[1]
-					if tagtype == "i":
+					tagpieces = s[t].split(":")  # split subfields, e.g. AM:i:23
+					tagtype = tagpieces[1]  # tag types are: A, i, f, Z, H, B
+					if tagtype == "i":  # convert string to signed integer
 						tagpieces[1] = int(tagpieces[2])
-					elif tagtype == "f":
+					elif tagtype == "f":  # convert string to single-precision floating point number
 						tagpieces[1] = float(tagpieces[2])
 					else:
 						tagpieces[1] = tagpieces[2]
 					tagpieces[2] = tagtype
-					tags.append(tagpieces)
+					tags.append(tagpieces)  # expects list of tag, value, type
 				a.set_tags(tags)
 				outf.write(a)
 		else:
@@ -625,8 +631,8 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 		outf.close()
 	if verbose:
 		printlog(f"sorting {outfile}")
-	pysam.sort("-@", "4", "-o", outfile, tempfile)
-	os.remove(tempfile)
+	pysam.sort("-@", "4", "-o", outfile, tempfile)  # sort alignments by leftmost coordinates
+	os.remove(tempfile)  # remove temporary file
 	if writemode == "wb":  #  index BAM file
 		if verbose:
 			printlog(f"indexing {outfile}")
@@ -634,6 +640,15 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 	return
 
 # encrypt bamFile selected short read regions with RSA-protected symmetric key
+#
+# bamFile is the name of the *.bam file to be encrypted, e.g. "test.bam"
+# keyUsers contains the --keypath list, e.g. --keypath=user2,user3 ['user2', 'user3']
+# RSAkeyFiles contains a list of those keyUsers opened bamFile.<user>.key files for
+#   storing the RSA public key encrypted symmetric key that decrypts the encrypted bamFile.
+#   For example: opened files ['test.bam.user2.key', 'test.bam.user3.key']
+# public_keys contains a list of the keyUsers public keys
+# cryptFile contains the opened file for writing the symmetric encrypted bamFile.
+#   For example, opened file 'test.bam.crypt'.
 def encryptRegions(bamFile, keyUsers, RSAkeyFiles, public_keys, cryptFile):
 	if bamFile != None:
 		if verbose:
@@ -641,20 +656,20 @@ def encryptRegions(bamFile, keyUsers, RSAkeyFiles, public_keys, cryptFile):
 			for i in range(len(keyUsers)):
 				printlog("     with unique symmetric key protected by RSA public key in: "
 								f"{bamFile + '.' + keyUsers[i] + '.key'}")
-		key = Fernet.generate_key()
-		for i in range(len(RSAkeyFiles)):
+		key = Fernet.generate_key()  # Fernet generates a random 32-byte symmetric key
+		for i in range(len(RSAkeyFiles)):  # encrypt key with each public RSA key to its file
 			with RSAkeyFiles[i] as ek:
 				ciphertext = public_keys[i].encrypt(key,
 											padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
 											algorithm=hashes.SHA256(),
-											label=None))
-				ek.write(ciphertext)
-		f = Fernet(key)
-		with open(bamFile, "rb") as bf:
-			bamData = bf.read()
-			with cryptFile as ef:
-				ef.write(f.encrypt(bamData))
-		os.remove(bamFile)
+											label=None))  # returns RSA public key encrypted symmetric key
+				ek.write(ciphertext)  # save it in corresponding .key file, e.g. 'test.bam.user2.key'
+		f = Fernet(key)  # get Fernet object for encryption using key
+		with open(bamFile, "rb") as bf:  # open the .bam file for reading binary values
+			bamData = bf.read()  # read the entire file to bamData
+			with cryptFile as ef:  # cryptFile is encryption output file, e.g. 'test.bam.crypt'
+				ef.write(f.encrypt(bamData))  # encrypt the entire file, saving it to cryptFile
+		os.remove(bamFile)  # remove the .bam plaintext file
 		if verbose:
 			printlog(f"{bamFile} extracted short reads encrypted to {bamFile + '.crypt'}")
 			for i in range(len(keyUsers)):
@@ -663,6 +678,15 @@ def encryptRegions(bamFile, keyUsers, RSAkeyFiles, public_keys, cryptFile):
 	return
 
 # decrypt bamFile selected short read regions with RSA-protected symmetric key
+#
+# bamFile is the name of the *.bam file to be decrypted, e.g. "test.bam"
+# keyUsers contains the --keypath list, e.g. --keypath=user2 ['user2']
+# RSAkeyFiles contains a list of that keyUsers opened bamFile.<user>.key file which
+#   stores the RSA public key encrypted symmetric key that decrypts the encrypted bamFile.
+#   For example: opened file ['test.bam.user2.key']
+# private_keys contains a list of the keyUsers private keys
+# cryptFile contains the opened file for reading the symmetric encrypted bamFile.
+#   For example, opened file 'test.bam.crypt'.
 def decryptRegions(bamFile, keyUsers, RSAkeyFiles, private_keys, cryptFile):
 	if private_keys[0] == None:
 		printlog("error: --decrypt (-d) option requires RSA private key --password "
@@ -679,7 +703,7 @@ def decryptRegions(bamFile, keyUsers, RSAkeyFiles, private_keys, cryptFile):
 											ciphertext,
 											padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
 											algorithm=hashes.SHA256(),
-											label=None))
+											label=None))  # returns RSA private key decrypted symmetric key
 			if verbose and trace:
 				printlog(f"           Fernet symmetric key: {key}")
 		f = Fernet(key)
@@ -895,7 +919,6 @@ def main():
 
 	trace = False
 	args = getArgs()
-	inputfile = args['inputfile']
 	inputfile = args['inputfile'].strip("'")
 	basename = os.path.basename(inputfile)
 	split = os.path.splitext(basename)
@@ -1146,8 +1169,21 @@ def main():
 				print(bamInfile.header)
 			if region is None:
 				bamIter = bamInfile.fetch()
-				for x in bamIter:
-					print(str(x))
+				if outfiletype != None:
+					with AlignmentFile(tempfile, mode=writemode, header=bamInfile.header) as outf:
+						for x in bamIter:
+							outf.write(x)
+					if verbose:
+						printlog(f"sorting {outfile}")
+					pysam.sort("-@", "4", "-o", outfile, tempfile)  # sort alignments by leftmost coord.
+					os.remove(tempfile)  # remove temporary file
+					if writemode == "wb":  #  index BAM file
+						if verbose:
+							printlog(f"indexing {outfile}")
+						pysam.index("-@", "4", outfile)
+				else:
+					for x in bamIter:
+						print(str(x))
 			else:  # support a list of ranges
 				if writemode != None:
 					if verbose:
@@ -1176,6 +1212,14 @@ def main():
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"error: [AlignmentFile({inputfile})]: {e}.")
 	elif infiletype == ".sam":
+		writemode = None
+		tempfile = None
+		if outfiletype == ".bam":
+			writemode = "wb"
+			tempfile = ".temp.bam"
+		elif outfiletype == ".sam":
+			writemode = "w"
+			tempfile = ".temp.sam"
 		try:
 			samInfile = AlignmentFile(inputfile, mode='r', check_sq=False, threads=4)
 			if args['header']:
@@ -1183,8 +1227,21 @@ def main():
 					printlog(f"SAM file '{inputfile}' header:")
 				printlog(samInfile.header)
 			samIter = samInfile.fetch()  # cannot extract regions from non-indexed SAM files
-			for x in samIter:
-				print(str(x))
+			if outfiletype != None:
+				with AlignmentFile(tempfile, mode=writemode, header=samInfile.header) as outf:
+					for x in samIter:
+						outf.write(x)
+				if verbose:
+					printlog(f"sorting {outfile}")
+				pysam.sort("-@", "4", "-o", outfile, tempfile)  # sort alignments by leftmost coord.
+				os.remove(tempfile)  # remove temporary file
+				if writemode == "wb":  #  index BAM file
+					if verbose:
+						printlog(f"indexing {outfile}")
+					pysam.index("-@", "4", outfile)
+			else:
+				for x in samIter:
+					print(str(x))
 
 		except (FileNotFoundError, ValueError) as e:
 			printlog(f"error: [AlignmentFile({inputfile})] error ignored: {e}.")
