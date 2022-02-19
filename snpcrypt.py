@@ -75,11 +75,10 @@ CHROM  POS ID  REF ALT QUAL  FILTER  INFO  FORMAT
 
 import os
 import sys
-
 import argparse  # command line parsing library
 import pysam  # python lightweight wrapper of the htslib C-API
-from pysam import AlignmentFile  # reads BAM/SAM files
-from pysam import VariantFile  # reads VCF files
+from pysam import AlignmentFile  # reads BAM and SAM files
+from pysam import VariantFile  # reads VCF and BCF files
 from cryptography.fernet import Fernet  # symmetric encryption
 from cryptography.hazmat.primitives.asymmetric import rsa  # RSA asymmetric encryption
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -697,8 +696,8 @@ def decryptRegions(bamFile, keyUsers, RSAkeyFiles, private_keys, cryptFile):
 			printlog(f"decrypting extracted regions to: {bamFile} from {bamFile + '.crypt'}")
 			printlog("     using unique symmetric key protected by RSA public key in: "
 							f"{bamFile + '.' + keyUsers[0] + '.key'}")
-		with RSAkeyFiles[0] as ek:
-			ciphertext = ek.read(512)
+		with RSAkeyFiles[0] as ek:  # opened file.bam.keyid.key or file.sam.keyid.key file
+			ciphertext = ek.read(512)  # read RSA public key encrypted symmetric key
 			key = private_keys[0].decrypt(
 											ciphertext,
 											padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),
@@ -706,7 +705,7 @@ def decryptRegions(bamFile, keyUsers, RSAkeyFiles, private_keys, cryptFile):
 											label=None))  # returns RSA private key decrypted symmetric key
 			if verbose and trace:
 				printlog(f"           Fernet symmetric key: {key}")
-		f = Fernet(key)
+		f = Fernet(key)  # get Fernet object for decryption using key
 		with cryptFile as ef:
 			cryptBamData = ef.read()
 			with open(bamFile, "wb") as bf:
