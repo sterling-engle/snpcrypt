@@ -472,14 +472,15 @@ def decryptFernet(cryptFilePath, cryptFile, encryptKeys, vcfOutfile):
 			printlog(f"{SNPcount} SNPs decrypted using individual symmetric keys")
 	return SNPcount
 
-def removeSNPs(removeFilePath, posTuple, vcfInfile):
+def removeSNPs(inputfile, removeFilePath, posTuple, vcfInfile):
 	SNPcopyCount = 0
 	SNPcount = 0
 	if removeFilePath != None:  # remove selected SNPs from VCF file
 		removeFilePath = removeFilePath.strip("'")
-		removeFilePathExt = f"{removeFilePath + '.noIDs.vcf'}"
+		# removeFilePathExt = f"{removeFilePath + '.noIDs.vcf'}"
 		if verbose:
-			printlog(f"   removing identity SNPs from: {removeFilePathExt}")
+			printlog(f"   removing identity SNPs from: {inputfile}")
+			printlog(f"                            to: {removeFilePath}")
 		"""
 		[E::bcf_write] Unchecked error (2)
 		Traceback (most recent call last):
@@ -492,9 +493,12 @@ def removeSNPs(removeFilePath, posTuple, vcfInfile):
 		Segmentation fault
 		"""
 		# store VCF header first
-		vcf_out = VariantFile(removeFilePathExt, 'w', header=vcfInfile.header)
-		vcf_out.close()
-		vcfOutfile = open(removeFilePathExt, "ab")  # append VCF bytes
+		vcfInfile = VariantFile(inputfile)  # auto-detect input format
+		vcfInfile.header.add_line('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">')
+		vcf_out = VariantFile(removeFilePath, 'w', header=vcfInfile.header)
+		# vcf_out = VariantFile('-', 'w', header=vcfInfile.header)
+		# vcf_out.close()
+		# vcfOutfile = open(removeFilePathExt, "ab")  # append VCF bytes
 		for rec in vcfInfile.fetch():
 			skip = False
 			for pos in posTuple:
@@ -509,6 +513,7 @@ def removeSNPs(removeFilePath, posTuple, vcfInfile):
 					posTuple = tuple(posList)
 					break
 			if skip == False:
+				"""
 				qual = rec.qual
 				if isinstance(qual, float):  # remove trailing zeroes
 					qual = f"{qual:.6f}".rstrip('0').rstrip('.')
@@ -520,10 +525,13 @@ def removeSNPs(removeFilePath, posTuple, vcfInfile):
 															sep=delim), sep=delim)
 				vcfOutfile.write(SNPbytes)
 				vcfOutfile.write(b"\n")
+				"""
+				vcf_out.write(rec)
 				SNPcopyCount += 1
-		vcfOutfile.close()
+		# vcfOutfile.close()
+		vcf_out.close()
 	if verbose:
-		printlog(f"{SNPcopyCount} non-identity SNPs output to VCF file and "
+		printlog(f"{SNPcopyCount} non-identity SNPs output to {removeFilePath} and "
 						f"{SNPcount} identity SNPs removed")
 	return SNPcopyCount, SNPcount
 
@@ -1098,7 +1106,7 @@ def main():
 			elif decrypt:  # symmetric decryption using Fernet
 				SNPcount = decryptFernet(cryptFilePath, cryptFile, encryptKeys, vcfOutfile)
 		elif removeFilePath != None:
-			SNPcopyCount, SNPcount = removeSNPs(removeFilePath, posTuple, vcfInfile)
+			SNPcopyCount, SNPcount = removeSNPs(inputfile, removeFilePath, posTuple, vcfInfile)
 		else:  # print plaintext SNPs
 			SNPcount = 0
 			for pos in posTuple:
