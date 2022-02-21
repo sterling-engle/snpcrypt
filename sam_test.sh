@@ -7,5 +7,5 @@
 #
 for f in *.sam ; do
   echo "testing file:" $f ;
-  python ~/capstone/snpcrypt.py --snps -1 $f ;
+  python ~/capstone/snpcrypt.py $f ;
 done
