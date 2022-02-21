@@ -40,7 +40,7 @@ optional arguments:
                         BAM/SAM output file [none]
   -p POS, --pos POS     base reference position(s) comma-separated list [none]
   -r REMOVE, --remove REMOVE
-                        remove --pos SNPs to this VCF file path [none]
+                        remove --pos SNPs to this VCF or BCF file path [none]
   -s SAMPLES, --samples SAMPLES
                         VCF/BCF sample(s) comma-separated list [all]
   -t, --verbose         enables verbose output [false]
@@ -475,30 +475,18 @@ def decryptFernet(cryptFilePath, cryptFile, encryptKeys, vcfOutfile):
 def removeSNPs(inputfile, removeFilePath, posTuple, vcfInfile):
 	SNPcopyCount = 0
 	SNPcount = 0
-	if removeFilePath != None:  # remove selected SNPs from VCF file
+	if removeFilePath != None:  # remove selected SNPs from vcfInfile to this BCF or VCF file
 		removeFilePath = removeFilePath.strip("'")
-		# removeFilePathExt = f"{removeFilePath + '.noIDs.vcf'}"
 		if verbose:
 			printlog(f"   removing identity SNPs from: {inputfile}")
 			printlog(f"                            to: {removeFilePath}")
 		"""
-		[E::bcf_write] Unchecked error (2)
-		Traceback (most recent call last):
-			File "/mnt/g/My Drive/1-Sterling/1-UCLA/1-MSCS/CM226 - ML in Bioinformatics/project/data/chr21.py", line 508, in main
-			  vcf_out.write(rec)
-			File "pysam/libcbcf.pyx", line 4400, in pysam.libcbcf.VariantFile.write
-			File "pysam/libcbcf.pyx", line 4437, in pysam.libcbcf.VariantFile.write
-		OSError: [Errno 0] b'Success'
-		vcf_out = VariantFile(removeFilePathExt, 'w', header=vcfInfile.header)
-		Segmentation fault
+		This line fixes pysam error [E::vcf_format] in vcfOutfile.write() call
+		[W::vcf_parse_format] FORMAT 'GT' at 21:9411239 is not defined in the header, assuming Type=String
+		[E::vcf_format] Invalid BCF, the FORMAT tag id=28 at 21:9411239 not present in the header
 		"""
-		# store VCF header first
-		vcfInfile = VariantFile(inputfile)  # auto-detect input format
 		vcfInfile.header.add_line('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">')
-		vcf_out = VariantFile(removeFilePath, 'w', header=vcfInfile.header)
-		# vcf_out = VariantFile('-', 'w', header=vcfInfile.header)
-		# vcf_out.close()
-		# vcfOutfile = open(removeFilePathExt, "ab")  # append VCF bytes
+		bcf_or_vcf_out = VariantFile(removeFilePath, 'w', header=vcfInfile.header)
 		for rec in vcfInfile.fetch():
 			skip = False
 			for pos in posTuple:
@@ -513,23 +501,10 @@ def removeSNPs(inputfile, removeFilePath, posTuple, vcfInfile):
 					posTuple = tuple(posList)
 					break
 			if skip == False:
-				"""
-				qual = rec.qual
-				if isinstance(qual, float):  # remove trailing zeroes
-					qual = f"{qual:.6f}".rstrip('0').rstrip('.')
-				SNPbytes = makeBytes(rec.chrom, str(rec.pos), rec.id, rec.ref,
-															getAlts(rec.alts), qual,
-															getFilter(rec.filter), getInfo(rec.info),
-															getFormat(rec.format),
-															getSamples(rec.samples, count, ids, bases,
-															sep=delim), sep=delim)
-				vcfOutfile.write(SNPbytes)
-				vcfOutfile.write(b"\n")
-				"""
-				vcf_out.write(rec)
+				bcf_or_vcf_out.write(rec)
 				SNPcopyCount += 1
-		# vcfOutfile.close()
-		vcf_out.close()
+		bcf_or_vcf_out.close()
+		vcfInfile.close()
 	if verbose:
 		printlog(f"{SNPcopyCount} non-identity SNPs output to {removeFilePath} and "
 						f"{SNPcount} identity SNPs removed")
@@ -903,7 +878,7 @@ def getArgs():
 	ap.add_argument("-p", "--pos", type=ascii, default="",
 									help="base reference position(s) comma-separated list [none]")
 	ap.add_argument("-r", "--remove", type=ascii,
-									help="remove --pos SNPs to this VCF file path [none]")
+									help="remove --pos SNPs to this VCF or BCF file path [none]")
 	ap.add_argument("-s", "--samples", type=ascii, default="",
 									help="VCF/BCF sample(s) comma-separated list [all]")
 	ap.add_argument("-t", "--verbose", action="store_true",
