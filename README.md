@@ -1,5 +1,5 @@
 # snpcrypt
-Securing Identification SNPs, Masked Short Reads, Phenotypes, and Clinical Data 
+Securing Masked Short Reads, Identification SNPs, Phenotypes, and Clinical Data
 using Cryptography
 
 Many people are understandably concerned about protecting their genomic privacy.
@@ -16,6 +16,6 @@ in a genomic databank and securely transmitted to researchers. I validated ID SN
 extraction, optional sample selection, and encryption using a 2,504-sample 
 chromosome 21 variant call format (VCF) file from phase 3 of the Human Genome Project. 
 I tested masked genomic sequence short read extraction and encryption with an indexed 
-binary alignment map (BAM) file of one of the phase 3 human DNA samples. I verified 
-correct parsing of VCF versions 4.1, 4.2, and 4.3 and SAM files using scripts to run 
-snpcrypt against all the "passed" test files in the Samtools hts-specs repository.
+binary alignment map (BAM) file of one of the phase 1 human DNA samples. I verified
+error-free parsing of SAM and VCF versions 4.1, 4.2, and 4.3 files using scripts to 
+run snpcrypt against all the "passed" test files in the Samtools hts-specs repository.
