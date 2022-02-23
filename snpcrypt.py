@@ -76,10 +76,10 @@ CHROM  POS ID  REF ALT QUAL  FILTER  INFO  FORMAT
 import os
 import sys
 import argparse  # command line parsing library
-import pysam  # python lightweight wrapper of the htslib C-API
+import pysam  # ver. 0.18.0 lightweight Python wrapper of htslib C-API version 1.14
 from pysam import AlignmentFile  # reads BAM and SAM files
 from pysam import VariantFile  # reads VCF and BCF files
-from cryptography.fernet import Fernet  # symmetric encryption
+from cryptography.fernet import Fernet  # symmetric encryption; cryptography 36.0.0
 from cryptography.hazmat.primitives.asymmetric import rsa  # RSA asymmetric encryption
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives.asymmetric import utils
