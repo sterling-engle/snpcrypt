@@ -529,6 +529,8 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 			qualScores = []
 			sequences = []
 			for reg in regionTuple:
+				if verbose and trace:
+					printlog(f"extracting region: {reg}")
 				# perform pileup within the region
 				bamIter = bamInfile.pileup(region = reg, truncate = True)
 				for x in bamIter:  # x is of type pysam.PileupColumn
@@ -562,11 +564,12 @@ def extractRegions(mask, bamInfile, regionTuple, tempfile, writemode, outfile):
 				printlog(f"positions in read: {queryPos}")
 				# printlog(f"quality scores: {qualScores}")
 				printlog(f"query sequences: {sequences}")
-			for s in range(len(samitems)):  # replace sequence with N's to mask all bases
+			samitemsLen = len(samitems)
+			for s in range(samitemsLen):  # replace sequence with N's to mask all bases
 				samitems[s][9] = "N" * len(samitems[s][9])
 			for q in range(len(queryNames)):  # for each query name
 				for i in range(len(queryNames[q])):  # for each matched sequence in that query
-					for s in range(len(samitems)):  # look for matching query name
+					for s in range(samitemsLen):  # look for matching query name
 						if samitems[s][0] == queryNames[q][i]:  # does this line contain the query?
 							# first index is 0-based position
 							# before matched base + matched base + after matched base
@@ -1122,7 +1125,7 @@ def main():
 
 		vcfInfile.close()
 
-	elif infiletype == ".bam" and decrypt:
+	elif decrypt and (infiletype == ".bam" or infiletype == ".sam"):
 		if keyPath != None or genKeyPath != None:  # use RSA-protected symmetric key
 			RSAkeyFiles = list()
 			for i in range(len(keyUsers)):
