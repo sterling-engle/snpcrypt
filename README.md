@@ -1,12 +1,14 @@
 # snpcrypt
                      UNIVERSITY OF CALIFORNIA LOS ANGELES
                         DEPARTMENT OF COMPUTER SCIENCE
-
+_______________________________________________________________________________________
 Securing Masked Short Reads, Identification SNPs, Phenotypes, and Clinical Data
-using Cryptography
+                               using Cryptography
 
-Capstone Project for: MSCS - Faculty Advisor: Prof. Sriram Sankararaman
-                         Date: February 19, 2022
+                             Student: Sterling Engle
+_______________________________________________________________________________________
+      Capstone Project for: MSCS - Faculty Advisor: Prof. Sriram Sankararaman
+                             Date: February 19, 2022
 
 Abstract---Many people are understandably concerned about protecting their genomic privacy.
 For this reason, they are unwilling to donate their genomes for genomic research. 
