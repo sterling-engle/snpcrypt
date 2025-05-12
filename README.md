@@ -12,11 +12,11 @@ ________________________________________________________________________________
 
 Abstract---Many people are understandably concerned about protecting their genomic privacy.
 For this reason, they are unwilling to donate their genomes for genomic research. 
-Huang et al discovered 116 identification (ID) SNPs on the human genome that can
-be used to uniquely identify every individual. My snpcrypt Python program extracts 
-and encrypts these ID SNPs, and can return a subset of the sample genotypes. It 
-encrypts masked extracted short reads of raw genomic data. It can encrypt any file 
-containing phenotypes or clinical data. All files are encrypted and decrypted using 
+Huang et al discovered 116 identification (ID) SNPs (Single Nucleotide Polymorphisms) 
+on the human genome that can be used to uniquely identify every individual. My snpcrypt 
+Python program extracts and encrypts these ID SNPs and can return a subset of the sample 
+genotypes. It encrypts masked extracted short reads of raw genomic data. It can encrypt 
+any file containing phenotypes or clinical data. All files are encrypted and decrypted using 
 a symmetric key that is protected by asymmetric RSA public key cryptography. Multiple 
 RSA public keys are supported for all file types for situations where more than one 
 individual needs to access the same file. Encryption enables this extremely sensitive 
